@@ -128,7 +128,7 @@ const MembershipSection = () => {
     }
 
     const options = {
-      key: "rzp_test_demo_key", // Replace with actual Razorpay key
+      key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_demo_key", // Replace with actual Razorpay key
       amount: selectedPlan.priceValue * 100, // Amount in paise
       currency: "INR",
       name: "Manvi Fishing Club",

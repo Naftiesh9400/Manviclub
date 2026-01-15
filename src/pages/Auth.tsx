@@ -86,8 +86,8 @@ const Auth = () => {
           description: "Welcome to Manvi Fishing Club.",
         });
       }
-      navigate("/");
     } catch (error: any) {
+      console.error("Auth error:", error);
       let message = "An error occurred. Please try again.";
       
       if (error.code === "auth/user-not-found") {
@@ -102,6 +102,12 @@ const Auth = () => {
         message = "Invalid email or password.";
       } else if (error.code === "auth/weak-password") {
         message = "Password should be at least 6 characters.";
+      } else if (error.code === "auth/operation-not-allowed") {
+        message = "Login method not enabled. Please contact support.";
+      } else if (error.code === "auth/popup-closed-by-user") {
+        message = "Sign-in popup was closed.";
+      } else if (error.code === "auth/network-request-failed") {
+        message = "Network error. Please check your connection.";
       }
 
       toast({
@@ -122,8 +128,8 @@ const Auth = () => {
         title: "Welcome!",
         description: "You've successfully logged in with Google.",
       });
-      navigate("/");
     } catch (error: any) {
+      console.error("Google login error:", error);
       toast({
         title: "Error",
         description: "Failed to login with Google. Please try again.",
@@ -135,7 +141,7 @@ const Auth = () => {
   };
 
   const fillAdminCredentials = () => {
-    setEmail("manviclub@gmail.com");
+    setEmail(import.meta.env.VITE_ADMIN_EMAIL || "manviclub@gmail.com");
     setPassword("qwert123");
     setIsLogin(true);
   };

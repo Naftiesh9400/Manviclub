@@ -60,7 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (user) {
         // Check if admin
-        setIsAdmin(user.email === "manviclub@gmail.com");
+        setIsAdmin(user.email === (import.meta.env.VITE_ADMIN_EMAIL || "manviclub@gmail.com"));
 
         // Load user data from Firestore
         try {
@@ -99,7 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await setDoc(doc(db, "users", user.uid), {
       email,
       displayName,
-      role: email === "manviclub@gmail.com" ? "admin" : "user",
+      role: email === (import.meta.env.VITE_ADMIN_EMAIL || "manviclub@gmail.com") ? "admin" : "user",
       createdAt: new Date()
     });
   };
