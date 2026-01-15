@@ -221,6 +221,11 @@ const Tournaments = () => {
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
                 </div>
               ) : (
+              tournaments.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  No upcoming tournaments found. Check back later!
+                </div>
+              ) : (
               <div className="grid lg:grid-cols-3 gap-8">
                 {tournaments.map((tournament) => (
                   <div key={tournament.id} className="card-premium overflow-hidden group">
@@ -308,6 +313,7 @@ const Tournaments = () => {
                   </div>
                 ))}
               </div>
+              )
               )}
             </TabsContent>
 

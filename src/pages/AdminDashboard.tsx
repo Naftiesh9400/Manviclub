@@ -303,6 +303,11 @@ const AdminDashboard = () => {
                   <Plus className="w-4 h-4" /> Add Tournament
                 </Button>
               </div>
+              {tournaments.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground border border-dashed rounded-lg">
+                  No tournaments created yet. Click "Add Tournament" to start.
+                </div>
+              ) : (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {tournaments.map((tournament) => (
                   <div key={tournament.id} className="card-premium p-6 relative group">
@@ -329,6 +334,7 @@ const AdminDashboard = () => {
                   </div>
                 ))}
               </div>
+              )}
             </TabsContent>
 
             <TabsContent value="users">
