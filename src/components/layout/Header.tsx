@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import logo from "@/assets/manvi2.png";
+import GoogleTranslate from "../GoogleTranslate";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -65,6 +66,7 @@ const Header = () => {
 
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center gap-3">
+            <GoogleTranslate id="google_translate_element_desktop" />
             {user ? (
               <>
                 <Link to="/dashboard">
@@ -105,6 +107,9 @@ const Header = () => {
         {isMenuOpen && (
           <div className="lg:hidden bg-white border-t border-primary/10 py-4 px-4">
             <nav className="flex flex-col gap-4">
+              <div className="flex justify-center mb-2">
+                <GoogleTranslate id="google_translate_element_mobile" />
+              </div>
               {navLinks.map((link) => (
                 link.href.startsWith("/#") ? (
                   <a
