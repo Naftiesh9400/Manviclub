@@ -39,7 +39,7 @@ const Footer = () => {
           {/* Brand Column */}
           <div className="col-span-2 md:col-span-4 lg:col-span-2">
             <a href="#" className="flex items-center gap-3 mb-6">
-              <img src={logo} alt="Manvi Fishing Club" className="w-12 h-12 object-contain" />
+              <img src={logo} alt="Manvi Fishing Club" className="w-20 h-20 object-contain" />
               <div className="flex flex-col">
                 <span className="font-display text-2xl font-bold text-primary">Manvi</span>
                 <span className="text-sm text-primary/70 -mt-1">

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Crown, Star, Zap, CreditCard, CheckCircle2, Mail, Sparkles } from "lucide-react";
+import { getFirestore, collection, addDoc } from "firebase/firestore";
 
 declare global {
   interface Window {
@@ -112,6 +113,7 @@ const MembershipSection = () => {
   const handlePayment = async () => {
     if (!selectedPlan) return;
     
+    const db = getFirestore();
     setIsProcessing(true);
 
     // Check if Razorpay is loaded
@@ -128,7 +130,7 @@ const MembershipSection = () => {
     }
 
     const options = {
-      key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_demo_key", // Replace with actual Razorpay key
+      key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_live_S48GPMRpTiySYx", // Replace with actual Razorpay key
       amount: selectedPlan.priceValue * 100, // Amount in paise
       currency: "INR",
       name: "Manvi Fishing Club",
@@ -137,6 +139,19 @@ const MembershipSection = () => {
       handler: function (response: any) {
         // Payment successful
         console.log("Payment successful:", response);
+        
+        // Record transaction
+        addDoc(collection(db, "transactions"), {
+          userId: user?.uid,
+          userName: user?.displayName || "Unknown",
+          userEmail: email,
+          plan: selectedPlan.planId,
+          amount: selectedPlan.priceValue,
+          razorpayPaymentId: response.razorpay_payment_id,
+          date: new Date(),
+          status: "success"
+        });
+
         setMembershipPlan(selectedPlan.planId).then(() => {
         setIsSuccess(true);
         setIsProcessing(false);
@@ -161,27 +176,8 @@ const MembershipSection = () => {
       },
     };
 
-    try {
-      // For demo purposes, simulate successful payment
-      // In production, use actual Razorpay checkout
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      
-      await setMembershipPlan(selectedPlan.planId);
-      setIsSuccess(true);
-      setIsProcessing(false);
-      
-      toast({
-        title: "Payment Successful! 🎉",
-        description: `Welcome to ${selectedPlan.name} membership!`,
-      });
-    } catch (error) {
-      setIsProcessing(false);
-      toast({
-        title: "Payment Failed",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
-    }
+    const rzp = new window.Razorpay(options);
+    rzp.open();
   };
 
   const handleGoToDashboard = () => {

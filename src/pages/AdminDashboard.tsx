@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, addDoc, deleteDoc } from "firebase/firestore";
-import { Loader2, Shield, Check, X, Plus, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Shield, Check, X, Plus, Pencil, Trash2, CreditCard, TrendingUp, DollarSign } from "lucide-react";
 
 interface UserData {
   id: string;
@@ -55,6 +55,29 @@ interface TournamentData {
   schedule?: { time: string; activity: string }[];
 }
 
+interface GalleryItemData {
+  id: string;
+  src: string;
+  title: string;
+  description: string;
+  category: "catches" | "events" | "members";
+  likes: number;
+  author: string;
+  date: string;
+}
+
+interface TransactionData {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  plan: string;
+  amount: number;
+  razorpayPaymentId: string;
+  date: any;
+  status: string;
+}
+
 const AdminDashboard = () => {
   const { user, isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -62,9 +85,13 @@ const AdminDashboard = () => {
   const [users, setUsers] = useState<UserData[]>([]);
   const [registrations, setRegistrations] = useState<RegistrationData[]>([]);
   const [tournaments, setTournaments] = useState<TournamentData[]>([]);
+  const [galleryItems, setGalleryItems] = useState<GalleryItemData[]>([]);
+  const [transactions, setTransactions] = useState<TransactionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [isTournamentDialogOpen, setIsTournamentDialogOpen] = useState(false);
+  const [isGalleryDialogOpen, setIsGalleryDialogOpen] = useState(false);
   const [formData, setFormData] = useState<Partial<TournamentData>>({});
+  const [galleryFormData, setGalleryFormData] = useState<Partial<GalleryItemData>>({});
 
   useEffect(() => {
     if (!authLoading) {
@@ -103,6 +130,22 @@ const AdminDashboard = () => {
         ...doc.data()
       })) as TournamentData[];
       setTournaments(tournamentsList);
+
+      // Fetch Gallery
+      const gallerySnapshot = await getDocs(collection(db, "gallery"));
+      const galleryList = gallerySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as GalleryItemData[];
+      setGalleryItems(galleryList);
+
+      // Fetch Transactions
+      const transactionsSnapshot = await getDocs(query(collection(db, "transactions"), orderBy("date", "desc")));
+      const transactionsList = transactionsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as TransactionData[];
+      setTransactions(transactionsList);
 
     } catch (error) {
       console.error("Error fetching admin data:", error);
@@ -199,6 +242,63 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleOpenGalleryDialog = (item?: GalleryItemData) => {
+    if (item) {
+      setGalleryFormData(item);
+    } else {
+      setGalleryFormData({
+        src: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800",
+        title: "",
+        description: "",
+        category: "catches",
+        likes: 0,
+        author: "Admin",
+        date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      });
+    }
+    setIsGalleryDialogOpen(true);
+  };
+
+  const handleSaveGalleryItem = async () => {
+    try {
+      const db = getFirestore();
+      if (galleryFormData.id) {
+        // Update
+        await updateDoc(doc(db, "gallery", galleryFormData.id), {
+          ...galleryFormData
+        });
+        setGalleryItems(galleryItems.map(item => item.id === galleryFormData.id ? { ...item, ...galleryFormData } as GalleryItemData : item));
+        toast({ title: "Image Updated" });
+      } else {
+        // Create
+        const docRef = await addDoc(collection(db, "gallery"), {
+          ...galleryFormData,
+          createdAt: new Date()
+        });
+        setGalleryItems([...galleryItems, { ...galleryFormData, id: docRef.id } as GalleryItemData]);
+        toast({ title: "Image Added" });
+      }
+      setIsGalleryDialogOpen(false);
+    } catch (error) {
+      console.error(error);
+      toast({ title: "Error saving image", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteGalleryItem = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this image?")) return;
+    try {
+      const db = getFirestore();
+      await deleteDoc(doc(db, "gallery", id));
+      setGalleryItems(galleryItems.filter(item => item.id !== id));
+      toast({ title: "Image Deleted" });
+    } catch (error) {
+      toast({ title: "Error deleting image", variant: "destructive" });
+    }
+  };
+
+  const totalRevenue = transactions.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+
   if (loading || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -221,6 +321,8 @@ const AdminDashboard = () => {
             <TabsList>
               <TabsTrigger value="registrations">Tournament Registrations</TabsTrigger>
               <TabsTrigger value="tournaments">Manage Tournaments</TabsTrigger>
+              <TabsTrigger value="sales">Sales & Payments</TabsTrigger>
+              <TabsTrigger value="gallery">Gallery</TabsTrigger>
               <TabsTrigger value="users">Users</TabsTrigger>
             </TabsList>
 
@@ -334,6 +436,103 @@ const AdminDashboard = () => {
                   </div>
                 ))}
               </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="sales">
+              {/* Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="card-premium p-6 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+                    <TrendingUp className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Revenue</p>
+                    <h3 className="text-2xl font-bold">₹{totalRevenue.toLocaleString()}</h3>
+                  </div>
+                </div>
+                <div className="card-premium p-6 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                    <CreditCard className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Transactions</p>
+                    <h3 className="text-2xl font-bold">{transactions.length}</h3>
+                  </div>
+                </div>
+              </div>
+
+              <div className="card-premium overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-muted text-muted-foreground uppercase text-xs">
+                      <tr>
+                        <th className="px-6 py-3">Date</th>
+                        <th className="px-6 py-3">User</th>
+                        <th className="px-6 py-3">Plan</th>
+                        <th className="px-6 py-3">Amount</th>
+                        <th className="px-6 py-3">Payment ID</th>
+                        <th className="px-6 py-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {transactions.map((tx) => (
+                        <tr key={tx.id} className="hover:bg-muted/50">
+                          <td className="px-6 py-4">
+                            {tx.date?.toDate ? tx.date.toDate().toLocaleDateString() : new Date(tx.date).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="font-medium">{tx.userName}</div>
+                            <div className="text-xs text-muted-foreground">{tx.userEmail}</div>
+                          </td>
+                          <td className="px-6 py-4 capitalize">{tx.plan}</td>
+                          <td className="px-6 py-4 font-bold">₹{tx.amount}</td>
+                          <td className="px-6 py-4 font-mono text-xs">{tx.razorpayPaymentId}</td>
+                          <td className="px-6 py-4">
+                            <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 capitalize">
+                              {tx.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="gallery">
+              <div className="flex justify-end mb-4">
+                <Button onClick={() => handleOpenGalleryDialog()} className="gap-2">
+                  <Plus className="w-4 h-4" /> Add Image
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {galleryItems.map((item) => (
+                  <div key={item.id} className="card-premium overflow-hidden group relative">
+                    <div className="aspect-square">
+                      <img src={item.src} alt={item.title} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <Button size="icon" variant="secondary" className="h-8 w-8" onClick={() => handleOpenGalleryDialog(item)}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="destructive" className="h-8 w-8" onClick={() => handleDeleteGalleryItem(item.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <div className="p-3">
+                      <h4 className="font-bold text-sm truncate">{item.title}</h4>
+                      <div className="flex justify-between items-center mt-1">
+                        <span className="text-xs text-muted-foreground capitalize">{item.category}</span>
+                        <span className="text-xs text-muted-foreground">{item.likes} ❤️</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {galleryItems.length === 0 && (
+                <div className="text-center py-12 text-muted-foreground border border-dashed rounded-lg">No images in gallery.</div>
               )}
             </TabsContent>
 
@@ -515,6 +714,70 @@ const AdminDashboard = () => {
             </div>
             <Button onClick={handleSaveTournament} className="w-full">
               {formData.id ? "Update Tournament" : "Create Tournament"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Gallery Dialog */}
+      <Dialog open={isGalleryDialogOpen} onOpenChange={setIsGalleryDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{galleryFormData.id ? "Edit Image" : "Add Image"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input 
+                value={galleryFormData.title || ""} 
+                onChange={(e) => setGalleryFormData({...galleryFormData, title: e.target.value})} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Image URL</Label>
+              <Input 
+                value={galleryFormData.src || ""} 
+                onChange={(e) => setGalleryFormData({...galleryFormData, src: e.target.value})} 
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <select 
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={galleryFormData.category || "catches"}
+                  onChange={(e) => setGalleryFormData({...galleryFormData, category: e.target.value as any})}
+                >
+                  <option value="catches">Catches</option>
+                  <option value="events">Events</option>
+                  <option value="members">Members</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Likes</Label>
+                <Input 
+                  type="number"
+                  value={galleryFormData.likes || 0} 
+                  onChange={(e) => setGalleryFormData({...galleryFormData, likes: parseInt(e.target.value)})} 
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Author</Label>
+              <Input 
+                value={galleryFormData.author || ""} 
+                onChange={(e) => setGalleryFormData({...galleryFormData, author: e.target.value})} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea 
+                value={galleryFormData.description || ""} 
+                onChange={(e) => setGalleryFormData({...galleryFormData, description: e.target.value})} 
+              />
+            </div>
+            <Button onClick={handleSaveGalleryItem} className="w-full">
+              {galleryFormData.id ? "Update Image" : "Add to Gallery"}
             </Button>
           </div>
         </DialogContent>
