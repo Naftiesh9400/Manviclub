@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
-import { Fish, Mail, Lock, User, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, User, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
+import logo from "@/assets/manvi2.png";
 
 const emailSchema = z.string().email("Please enter a valid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
@@ -156,9 +157,7 @@ const Auth = () => {
         <div className="card-premium p-8">
           {/* Logo */}
           <div className="text-center mb-8">
-            <div className="w-16 h-16 rounded-full bg-secondary mx-auto mb-4 flex items-center justify-center">
-              <Fish className="w-8 h-8 text-secondary-foreground" />
-            </div>
+            <img src={logo} alt="Manvi Fishing Club" className="h-24 mx-auto mb-4 object-contain" />
             <h1 className="font-display text-2xl font-bold text-foreground">
               {isLogin ? "Welcome Back" : "Join the Club"}
             </h1>
