@@ -97,6 +97,8 @@ const Auth = () => {
         message = "An account with this email already exists.";
       } else if (error.code === "auth/invalid-email") {
         message = "Invalid email address.";
+      } else if (error.code === "auth/invalid-credential") {
+        message = "Invalid email or password.";
       } else if (error.code === "auth/weak-password") {
         message = "Password should be at least 6 characters.";
       }

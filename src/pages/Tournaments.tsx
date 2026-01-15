@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -30,12 +30,10 @@ import {
   Award,
   Fish,
   Medal,
-  Star
+  Star,
+  Loader2
 } from "lucide-react";
-import tournament1 from "@/assets/tournament-1.jpg";
-import tournament2 from "@/assets/tournament-2.jpg";
-import tournament3 from "@/assets/tournament-3.jpg";
-import { getFirestore, collection, addDoc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs } from "firebase/firestore";
 
 interface Tournament {
   id: string;
@@ -53,93 +51,6 @@ interface Tournament {
   schedule: { time: string; activity: string }[];
 }
 
-const tournaments: Tournament[] = [
-  {
-    id: "spring-bass-2025",
-    image: tournament1,
-    title: "Spring Bass Challenge",
-    date: "March 15-17, 2025",
-    location: "Krishna River, Vijayawada",
-    participants: "120 Spots",
-    maxParticipants: 120,
-    currentParticipants: 87,
-    prize: "₹2,50,000",
-    status: "Open",
-    description: "Join us for the most anticipated bass fishing tournament of the season. Compete against skilled anglers from across the region in this 3-day event featuring world-class fishing spots.",
-    rules: [
-      "All participants must be 18+ years old",
-      "Valid fishing license required",
-      "Maximum 5 fish per day limit",
-      "Only artificial lures allowed",
-      "Catch and release mandatory",
-      "Safety vest required on boats"
-    ],
-    schedule: [
-      { time: "5:00 AM", activity: "Registration & Check-in" },
-      { time: "6:00 AM", activity: "Safety Briefing" },
-      { time: "6:30 AM", activity: "Tournament Start" },
-      { time: "2:00 PM", activity: "Weigh-in Begins" },
-      { time: "4:00 PM", activity: "Results Announcement" }
-    ]
-  },
-  {
-    id: "summer-catch-2025",
-    image: tournament2,
-    title: "Summer Catch Classic",
-    date: "June 20-22, 2025",
-    location: "Tungabhadra Dam, Hospet",
-    participants: "100 Spots",
-    maxParticipants: 100,
-    currentParticipants: 45,
-    prize: "₹3,00,000",
-    status: "Coming Soon",
-    description: "Experience the thrill of summer fishing at the beautiful Tungabhadra Dam. This classic tournament attracts the best anglers for three days of intense competition.",
-    rules: [
-      "All participants must be 18+ years old",
-      "Valid fishing license required",
-      "Maximum 6 fish per day limit",
-      "Both live bait and lures allowed",
-      "Catch and release for trophy fish",
-      "Life jacket mandatory"
-    ],
-    schedule: [
-      { time: "4:30 AM", activity: "Registration & Check-in" },
-      { time: "5:30 AM", activity: "Safety Briefing" },
-      { time: "6:00 AM", activity: "Tournament Start" },
-      { time: "1:00 PM", activity: "Weigh-in Begins" },
-      { time: "3:00 PM", activity: "Daily Results" }
-    ]
-  },
-  {
-    id: "night-fishing-2025",
-    image: tournament3,
-    title: "Night Fishing Tournament",
-    date: "August 8-10, 2025",
-    location: "Almatti Dam, Bagalkot",
-    participants: "80 Spots",
-    maxParticipants: 80,
-    currentParticipants: 23,
-    prize: "₹1,75,000",
-    status: "Coming Soon",
-    description: "A unique night fishing experience under the stars. Test your skills in low-light conditions and compete for amazing prizes.",
-    rules: [
-      "All participants must be 18+ years old",
-      "Valid fishing license required",
-      "Night fishing gear mandatory",
-      "Maximum 4 fish per night limit",
-      "Headlamps and safety lights required",
-      "No shore fishing allowed"
-    ],
-    schedule: [
-      { time: "5:00 PM", activity: "Registration & Check-in" },
-      { time: "6:00 PM", activity: "Dinner & Briefing" },
-      { time: "8:00 PM", activity: "Tournament Start" },
-      { time: "2:00 AM", activity: "Break Period" },
-      { time: "6:00 AM", activity: "Weigh-in & Results" }
-    ]
-  }
-];
-
 const leaderboard = [
   { rank: 1, name: "Rajesh Kumar", catches: 24, weight: "45.2 kg", points: 1250 },
   { rank: 2, name: "Anil Sharma", catches: 22, weight: "42.8 kg", points: 1180 },
@@ -154,6 +65,8 @@ const leaderboard = [
 ];
 
 const Tournaments = () => {
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const [isRegistrationOpen, setIsRegistrationOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -168,6 +81,41 @@ const Tournaments = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchTournaments = async () => {
+      try {
+        const db = getFirestore();
+        const querySnapshot = await getDocs(collection(db, "tournaments"));
+        const fetchedTournaments = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            // Provide defaults for fields not yet managed by Admin Dashboard
+            participants: `${data.maxParticipants} Spots`,
+            rules: data.rules || [
+              "All participants must be 18+ years old",
+              "Valid fishing license required",
+              "Catch and release mandatory"
+            ],
+            schedule: data.schedule || [
+              { time: "6:00 AM", activity: "Registration" },
+              { time: "7:00 AM", activity: "Start" },
+              { time: "3:00 PM", activity: "End" }
+            ]
+          } as Tournament;
+        });
+        setTournaments(fetchedTournaments);
+      } catch (error) {
+        console.error("Error fetching tournaments:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTournaments();
+  }, []);
 
   const handleRegister = (tournament: Tournament) => {
     if (!user) {
@@ -268,7 +216,11 @@ const Tournaments = () => {
             </TabsList>
 
             <TabsContent value="upcoming">
-              {/* Tournament Cards */}
+              {isLoading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : (
               <div className="grid lg:grid-cols-3 gap-8">
                 {tournaments.map((tournament) => (
                   <div key={tournament.id} className="card-premium overflow-hidden group">
@@ -356,6 +308,7 @@ const Tournaments = () => {
                   </div>
                 ))}
               </div>
+              )}
             </TabsContent>
 
             <TabsContent value="leaderboard">

@@ -18,18 +18,27 @@ import {
   ChevronRight,
   Check,
   Sparkles,
-  Shield
+  Shield,
+  Loader2
 } from "lucide-react";
 
 const Dashboard = () => {
-  const { user, membership, logout, isAdmin } = useAuth();
+  const { user, membership, logout, isAdmin, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!user) {
+    if (!loading && !user) {
       navigate("/auth");
     }
-  }, [user, navigate]);
+  }, [user, loading, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!user) return null;
 

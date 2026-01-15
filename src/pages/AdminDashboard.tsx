@@ -5,9 +5,18 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc } from "firebase/firestore";
-import { Loader2, Shield, Check, X } from "lucide-react";
+import { getFirestore, collection, getDocs, query, orderBy, doc, updateDoc, addDoc, deleteDoc } from "firebase/firestore";
+import { Loader2, Shield, Check, X, Plus, Pencil, Trash2 } from "lucide-react";
 
 interface UserData {
   id: string;
@@ -31,13 +40,31 @@ interface RegistrationData {
   teamName?: string;
 }
 
+interface TournamentData {
+  id: string;
+  title: string;
+  date: string;
+  location: string;
+  prize: string;
+  status: string;
+  maxParticipants: number;
+  currentParticipants: number;
+  description: string;
+  image: string;
+  rules?: string[];
+  schedule?: { time: string; activity: string }[];
+}
+
 const AdminDashboard = () => {
   const { user, isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [users, setUsers] = useState<UserData[]>([]);
   const [registrations, setRegistrations] = useState<RegistrationData[]>([]);
+  const [tournaments, setTournaments] = useState<TournamentData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isTournamentDialogOpen, setIsTournamentDialogOpen] = useState(false);
+  const [formData, setFormData] = useState<Partial<TournamentData>>({});
 
   useEffect(() => {
     if (!authLoading) {
@@ -68,6 +95,14 @@ const AdminDashboard = () => {
         ...doc.data()
       })) as RegistrationData[];
       setRegistrations(regsList);
+
+      // Fetch Tournaments
+      const tournamentsSnapshot = await getDocs(collection(db, "tournaments"));
+      const tournamentsList = tournamentsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as TournamentData[];
+      setTournaments(tournamentsList);
 
     } catch (error) {
       console.error("Error fetching admin data:", error);
@@ -101,6 +136,69 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleOpenTournamentDialog = (tournament?: TournamentData) => {
+    if (tournament) {
+      setFormData({
+        ...tournament,
+        rules: tournament.rules || [],
+        schedule: tournament.schedule || []
+      });
+    } else {
+      setFormData({
+        title: "",
+        date: "",
+        location: "",
+        prize: "",
+        status: "Open",
+        maxParticipants: 100,
+        currentParticipants: 0,
+        description: "",
+        image: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800",
+        rules: [],
+        schedule: []
+      });
+    }
+    setIsTournamentDialogOpen(true);
+  };
+
+  const handleSaveTournament = async () => {
+    try {
+      const db = getFirestore();
+      if (formData.id) {
+        // Update
+        await updateDoc(doc(db, "tournaments", formData.id), {
+          ...formData
+        });
+        setTournaments(tournaments.map(t => t.id === formData.id ? { ...t, ...formData } as TournamentData : t));
+        toast({ title: "Tournament Updated" });
+      } else {
+        // Create
+        const docRef = await addDoc(collection(db, "tournaments"), {
+          ...formData,
+          createdAt: new Date()
+        });
+        setTournaments([...tournaments, { ...formData, id: docRef.id } as TournamentData]);
+        toast({ title: "Tournament Created" });
+      }
+      setIsTournamentDialogOpen(false);
+    } catch (error) {
+      console.error(error);
+      toast({ title: "Error saving tournament", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteTournament = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this tournament?")) return;
+    try {
+      const db = getFirestore();
+      await deleteDoc(doc(db, "tournaments", id));
+      setTournaments(tournaments.filter(t => t.id !== id));
+      toast({ title: "Tournament Deleted" });
+    } catch (error) {
+      toast({ title: "Error deleting tournament", variant: "destructive" });
+    }
+  };
+
   if (loading || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -122,6 +220,7 @@ const AdminDashboard = () => {
           <Tabs defaultValue="registrations" className="space-y-6">
             <TabsList>
               <TabsTrigger value="registrations">Tournament Registrations</TabsTrigger>
+              <TabsTrigger value="tournaments">Manage Tournaments</TabsTrigger>
               <TabsTrigger value="users">Users</TabsTrigger>
             </TabsList>
 
@@ -198,6 +297,40 @@ const AdminDashboard = () => {
               </div>
             </TabsContent>
 
+            <TabsContent value="tournaments">
+              <div className="flex justify-end mb-4">
+                <Button onClick={() => handleOpenTournamentDialog()} className="gap-2">
+                  <Plus className="w-4 h-4" /> Add Tournament
+                </Button>
+              </div>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {tournaments.map((tournament) => (
+                  <div key={tournament.id} className="card-premium p-6 relative group">
+                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button size="icon" variant="secondary" className="h-8 w-8" onClick={() => handleOpenTournamentDialog(tournament)}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="destructive" className="h-8 w-8" onClick={() => handleDeleteTournament(tournament.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <h3 className="font-bold text-lg mb-2">{tournament.title}</h3>
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      <p>📅 {tournament.date}</p>
+                      <p>📍 {tournament.location}</p>
+                      <p>🏆 {tournament.prize}</p>
+                      <p>👥 {tournament.currentParticipants}/{tournament.maxParticipants} Participants</p>
+                      <span className={`inline-block px-2 py-1 rounded-full text-xs ${
+                        tournament.status === 'Open' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {tournament.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </TabsContent>
+
             <TabsContent value="users">
               <div className="card-premium overflow-hidden">
                 <div className="overflow-x-auto">
@@ -241,6 +374,145 @@ const AdminDashboard = () => {
         </div>
       </main>
       <Footer />
+
+      <Dialog open={isTournamentDialogOpen} onOpenChange={setIsTournamentDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{formData.id ? "Edit Tournament" : "Add Tournament"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input 
+                value={formData.title || ""} 
+                onChange={(e) => setFormData({...formData, title: e.target.value})} 
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Date</Label>
+                <Input 
+                  value={formData.date || ""} 
+                  onChange={(e) => setFormData({...formData, date: e.target.value})} 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <select 
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={formData.status || "Open"}
+                  onChange={(e) => setFormData({...formData, status: e.target.value})}
+                >
+                  <option value="Open">Open</option>
+                  <option value="Coming Soon">Coming Soon</option>
+                  <option value="Closed">Closed</option>
+                </select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Location</Label>
+              <Input 
+                value={formData.location || ""} 
+                onChange={(e) => setFormData({...formData, location: e.target.value})} 
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Prize</Label>
+                <Input 
+                  value={formData.prize || ""} 
+                  onChange={(e) => setFormData({...formData, prize: e.target.value})} 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Max Participants</Label>
+                <Input 
+                  type="number"
+                  value={formData.maxParticipants || 0} 
+                  onChange={(e) => setFormData({...formData, maxParticipants: parseInt(e.target.value)})} 
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea 
+                value={formData.description || ""} 
+                onChange={(e) => setFormData({...formData, description: e.target.value})} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Image URL</Label>
+              <Input 
+                value={formData.image || ""} 
+                onChange={(e) => setFormData({...formData, image: e.target.value})} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Rules (One per line)</Label>
+              <Textarea 
+                value={formData.rules?.join('\n') || ""} 
+                onChange={(e) => setFormData({...formData, rules: e.target.value.split('\n')})}
+                placeholder="Rule 1&#10;Rule 2&#10;Rule 3"
+                rows={5}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Schedule</Label>
+              <div className="space-y-2">
+                {formData.schedule?.map((item, index) => (
+                  <div key={index} className="flex gap-2">
+                    <Input
+                      placeholder="Time"
+                      className="w-1/3"
+                      value={item.time}
+                      onChange={(e) => {
+                        const newSchedule = [...(formData.schedule || [])];
+                        newSchedule[index].time = e.target.value;
+                        setFormData({...formData, schedule: newSchedule});
+                      }}
+                    />
+                    <Input
+                      placeholder="Activity"
+                      className="flex-1"
+                      value={item.activity}
+                      onChange={(e) => {
+                        const newSchedule = [...(formData.schedule || [])];
+                        newSchedule[index].activity = e.target.value;
+                        setFormData({...formData, schedule: newSchedule});
+                      }}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        const newSchedule = formData.schedule?.filter((_, i) => i !== index);
+                        setFormData({...formData, schedule: newSchedule});
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFormData({
+                    ...formData,
+                    schedule: [...(formData.schedule || []), { time: "", activity: "" }]
+                  })}
+                  className="w-full"
+                >
+                  <Plus className="w-4 h-4 mr-2" /> Add Schedule Item
+                </Button>
+              </div>
+            </div>
+            <Button onClick={handleSaveTournament} className="w-full">
+              {formData.id ? "Update Tournament" : "Create Tournament"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
