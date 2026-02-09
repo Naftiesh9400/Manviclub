@@ -87,10 +87,19 @@ const AdminDashboard = () => {
   const [applicationNote, setApplicationNote] = useState("");
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/");
+    if (!authLoading) {
+      if (!user) {
+        navigate("/auth");
+      } else if (!isAdmin) {
+        toast({
+          title: "Access Denied",
+          description: "You do not have admin permissions.",
+          variant: "destructive",
+        });
+        navigate("/");
+      }
     }
-  }, [user, authLoading, navigate]);
+  }, [user, isAdmin, authLoading, navigate, toast]);
 
   useEffect(() => {
     if (user) {
