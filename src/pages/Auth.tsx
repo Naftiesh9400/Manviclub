@@ -140,12 +140,6 @@ const Auth = () => {
     }
   };
 
-  const fillAdminCredentials = () => {
-    setEmail(import.meta.env.VITE_ADMIN_EMAIL || "manviclub@gmail.com");
-    setPassword("qwert123");
-    setIsLogin(true);
-  };
-
   return (
     <div className="min-h-screen bg-gradient-ocean flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -249,15 +243,6 @@ const Auth = () => {
               {isLoading ? "Please wait..." : isLogin ? "Sign In" : "Create Account"}
             </Button>
           </form>
-
-          {/* Demo Admin Button */}
-          <Button
-            variant="ghost"
-            className="w-full mt-4 text-xs text-muted-foreground hover:text-foreground"
-            onClick={fillAdminCredentials}
-          >
-            (Demo) Fill Admin Credentials
-          </Button>
 
           {/* Divider */}
           <div className="relative my-6">

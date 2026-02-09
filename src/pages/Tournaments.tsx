@@ -33,7 +33,7 @@ import {
   Star,
   Loader2
 } from "lucide-react";
-import { getFirestore, collection, addDoc, getDocs } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs, query, orderBy } from "firebase/firestore";
 
 interface Tournament {
   id: string;
@@ -45,30 +45,20 @@ interface Tournament {
   maxParticipants: number;
   currentParticipants: number;
   prize: string;
-  status: "Open" | "Coming Soon" | "Closed";
+  price: number;
+  status: "Open" | "Coming Soon" | "Closed" | "open" | "upcoming" | "ongoing" | "completed";
   description: string;
   rules: string[];
   schedule: { time: string; activity: string }[];
 }
 
-const leaderboard = [
-  { rank: 1, name: "Rajesh Kumar", catches: 24, weight: "45.2 kg", points: 1250 },
-  { rank: 2, name: "Anil Sharma", catches: 22, weight: "42.8 kg", points: 1180 },
-  { rank: 3, name: "Vikram Patel", catches: 21, weight: "40.5 kg", points: 1120 },
-  { rank: 4, name: "Suresh Reddy", catches: 20, weight: "38.9 kg", points: 1050 },
-  { rank: 5, name: "Mahesh Rao", catches: 19, weight: "37.2 kg", points: 980 },
-  { rank: 6, name: "Prakash Singh", catches: 18, weight: "35.8 kg", points: 920 },
-  { rank: 7, name: "Ravi Verma", catches: 17, weight: "34.1 kg", points: 870 },
-  { rank: 8, name: "Deepak Joshi", catches: 16, weight: "32.6 kg", points: 820 },
-  { rank: 9, name: "Kiran Naidu", catches: 15, weight: "31.0 kg", points: 770 },
-  { rank: 10, name: "Sanjay Murthy", catches: 14, weight: "29.5 kg", points: 720 },
-];
-
 const Tournaments = () => {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
   const [isRegistrationOpen, setIsRegistrationOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -76,37 +66,18 @@ const Tournaments = () => {
     experience: "",
     teamName: "",
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   const { user } = useAuth();
-  const navigate = useNavigate();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchTournaments = async () => {
       try {
         const db = getFirestore();
-        const querySnapshot = await getDocs(collection(db, "tournaments"));
-        const fetchedTournaments = querySnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            // Provide defaults for fields not yet managed by Admin Dashboard
-            participants: `${data.maxParticipants} Spots`,
-            rules: data.rules || [
-              "All participants must be 18+ years old",
-              "Valid fishing license required",
-              "Catch and release mandatory"
-            ],
-            schedule: data.schedule || [
-              { time: "6:00 AM", activity: "Registration" },
-              { time: "7:00 AM", activity: "Start" },
-              { time: "3:00 PM", activity: "End" }
-            ]
-          } as Tournament;
-        });
-        setTournaments(fetchedTournaments);
+        const q = query(collection(db, "tournaments"), orderBy("date", "asc"));
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tournament));
+        setTournaments(data);
       } catch (error) {
         console.error("Error fetching tournaments:", error);
       } finally {
@@ -115,6 +86,18 @@ const Tournaments = () => {
     };
 
     fetchTournaments();
+
+    const fetchLeaderboard = async () => {
+      try {
+        const db = getFirestore();
+        const q = query(collection(db, "leaderboard"), orderBy("rank", "asc"));
+        const snapshot = await getDocs(q);
+        setLeaderboard(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (error) {
+        console.error("Error fetching leaderboard:", error);
+      }
+    };
+    fetchLeaderboard();
   }, []);
 
   const handleRegister = (tournament: Tournament) => {
@@ -142,38 +125,128 @@ const Tournaments = () => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    try {
-      const db = getFirestore();
-      await addDoc(collection(db, "registrations"), {
-        tournamentId: selectedTournament?.id,
-        tournamentTitle: selectedTournament?.title,
-        userId: user?.uid,
-        userName: formData.name,
-        userEmail: formData.email,
-        userPhone: formData.phone,
-        teamName: formData.teamName,
-        experience: formData.experience,
-        registeredAt: new Date(),
-        status: "pending"
-      });
-    } catch (error) {
-      console.error("Error registering:", error);
-      toast({
-        title: "Registration Failed",
-        description: "Please try again later.",
-        variant: "destructive",
-      });
-      setIsSubmitting(false);
-      return;
+    const price = selectedTournament?.price || 0;
+
+    if (price > 0) {
+      // Payment Flow
+      if (typeof window.Razorpay === "undefined") {
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.async = true;
+        document.body.appendChild(script);
+        await new Promise((resolve) => {
+          script.onload = resolve;
+        });
+      }
+
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_live_S48GPMRpTiySYx",
+        amount: price * 100,
+        currency: "INR",
+        name: "Manvi Fishing Club",
+        description: `Registration for ${selectedTournament?.title}`,
+        image: "/favicon.ico",
+        handler: async function (response: any) {
+          try {
+            const db = getFirestore();
+            
+            // Record Payment
+            await addDoc(collection(db, "payments"), {
+              userId: user?.uid,
+              userName: formData.name,
+              userEmail: formData.email,
+              amount: price,
+              razorpayPaymentId: response.razorpay_payment_id,
+              type: "tournament_registration",
+              tournamentId: selectedTournament?.id,
+              tournamentName: selectedTournament?.title,
+              date: new Date(),
+              status: "completed"
+            });
+
+            // Record Registration
+            await addDoc(collection(db, "registrations"), {
+              tournamentId: selectedTournament?.id,
+              tournamentTitle: selectedTournament?.title,
+              userId: user?.uid,
+              userName: formData.name,
+              userEmail: formData.email,
+              userPhone: formData.phone,
+              teamName: formData.teamName,
+              experience: formData.experience,
+              registeredAt: new Date(),
+              status: "confirmed",
+              paymentId: response.razorpay_payment_id,
+              amountPaid: price
+            });
+
+            toast({
+              title: "Registration Successful! 🎉",
+              description: `You've been registered for ${selectedTournament?.title}. Check your email for details.`,
+            });
+            setIsRegistrationOpen(false);
+          } catch (error) {
+            console.error("Error saving registration:", error);
+            toast({
+              title: "Registration Error",
+              description: "Payment successful but registration failed. Please contact support.",
+              variant: "destructive",
+            });
+          } finally {
+            setIsSubmitting(false);
+          }
+        },
+        prefill: {
+          name: formData.name,
+          email: formData.email,
+          contact: formData.phone
+        },
+        theme: {
+          color: "#1e6091",
+        },
+        modal: {
+          ondismiss: function () {
+            setIsSubmitting(false);
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } else {
+      // Free Registration Flow
+      try {
+        const db = getFirestore();
+        await addDoc(collection(db, "registrations"), {
+          tournamentId: selectedTournament?.id,
+          tournamentTitle: selectedTournament?.title,
+          userId: user?.uid,
+          userName: formData.name,
+          userEmail: formData.email,
+          userPhone: formData.phone,
+          teamName: formData.teamName,
+          experience: formData.experience,
+          registeredAt: new Date(),
+          status: "confirmed",
+          amountPaid: 0
+        });
+
+        toast({
+          title: "Registration Successful! 🎉",
+          description: `You've been registered for ${selectedTournament?.title}.`,
+        });
+        setIsRegistrationOpen(false);
+      } catch (error) {
+        console.error("Error registering:", error);
+        toast({
+          title: "Registration Failed",
+          description: "Please try again later.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
     }
-
-    toast({
-      title: "Registration Successful! 🎉",
-      description: `You've been registered for ${selectedTournament?.title}. Check your email for details.`,
-    });
-
-    setIsRegistrationOpen(false);
-    setIsSubmitting(false);
   };
 
   const getRankIcon = (rank: number) => {
@@ -239,12 +312,12 @@ const Tournaments = () => {
                       <div className="absolute top-4 right-4">
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            tournament.status === "Open"
+                            tournament.status === "Open" || tournament.status === "open"
                               ? "bg-secondary text-secondary-foreground"
                               : "bg-muted text-muted-foreground"
                           }`}
                         >
-                          {tournament.status}
+                          {tournament.status === "open" ? "Registration Open" : tournament.status}
                         </span>
                       </div>
                       <div className="absolute bottom-4 left-4">
@@ -301,12 +374,12 @@ const Tournaments = () => {
                           Details
                         </Button>
                         <Button
-                          variant={tournament.status === "Open" ? "hero" : "outline"}
+                          variant={tournament.status === "Open" || tournament.status === "open" ? "hero" : "outline"}
                           className="flex-1"
-                          disabled={tournament.status !== "Open"}
+                          disabled={tournament.status !== "Open" && tournament.status !== "open"}
                           onClick={() => handleRegister(tournament)}
                         >
-                          {tournament.status === "Open" ? "Register" : "Notify Me"}
+                          {tournament.status === "Open" || tournament.status === "open" ? "Register" : "Notify Me"}
                         </Button>
                       </div>
                     </div>
@@ -330,9 +403,9 @@ const Tournaments = () => {
                   </div>
 
                   <div className="divide-y divide-border">
-                    {leaderboard.map((player) => (
+                    {leaderboard.length > 0 ? leaderboard.map((player) => (
                       <div 
-                        key={player.rank} 
+                        key={player.id || player.rank} 
                         className={`flex items-center justify-between p-4 hover:bg-muted/50 transition-colors ${
                           player.rank <= 3 ? "bg-accent/5" : ""
                         }`}
@@ -353,7 +426,11 @@ const Tournaments = () => {
                           <p className="text-xs text-muted-foreground">points</p>
                         </div>
                       </div>
-                    ))}
+                    )) : (
+                      <div className="p-8 text-center text-muted-foreground">
+                        No leaderboard data available yet.
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -364,7 +441,7 @@ const Tournaments = () => {
 
       {/* Tournament Details Modal */}
       <Dialog open={!!selectedTournament && !isRegistrationOpen} onOpenChange={() => setSelectedTournament(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           {selectedTournament && (
             <>
               <DialogHeader>
@@ -373,7 +450,6 @@ const Tournaments = () => {
               </DialogHeader>
 
               <div className="space-y-6 mt-4">
-                {/* Details Grid */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
                     <Calendar className="w-5 h-5 text-secondary" />
@@ -412,7 +488,7 @@ const Tournaments = () => {
                     Tournament Rules
                   </h3>
                   <ul className="space-y-2">
-                    {selectedTournament.rules.map((rule, index) => (
+                    {selectedTournament.rules?.map((rule, index) => (
                       <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
                         <span className="text-secondary mt-1">•</span>
                         {rule}
@@ -428,7 +504,7 @@ const Tournaments = () => {
                     Daily Schedule
                   </h3>
                   <div className="space-y-2">
-                    {selectedTournament.schedule.map((item, index) => (
+                    {selectedTournament.schedule?.map((item, index) => (
                       <div key={index} className="flex items-center gap-4 text-sm">
                         <span className="font-mono text-secondary w-16">{item.time}</span>
                         <span className="text-muted-foreground">{item.activity}</span>
@@ -441,10 +517,10 @@ const Tournaments = () => {
                   variant="hero" 
                   className="w-full" 
                   size="lg"
-                  disabled={selectedTournament.status !== "Open"}
+                  disabled={selectedTournament.status !== "Open" && selectedTournament.status !== "open"}
                   onClick={() => handleRegister(selectedTournament)}
                 >
-                  {selectedTournament.status === "Open" ? "Register Now" : "Notify When Open"}
+                  {selectedTournament.status === "Open" || selectedTournament.status === "open" ? "Register Now" : "Notify When Open"}
                 </Button>
               </div>
             </>
@@ -518,7 +594,7 @@ const Tournaments = () => {
 
             <div className="bg-muted p-4 rounded-lg">
               <p className="text-sm text-muted-foreground">
-                <strong>Registration Fee:</strong> ₹1,500
+                <strong>Registration Fee:</strong> ₹{selectedTournament?.price}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 Payment will be collected via Razorpay after submission.
@@ -526,7 +602,7 @@ const Tournaments = () => {
             </div>
 
             <Button type="submit" variant="hero" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? "Processing..." : "Proceed to Payment"}
+              {isSubmitting ? "Processing..." : (selectedTournament?.price && selectedTournament.price > 0) ? `Pay ₹${selectedTournament.price}` : "Confirm Registration"}
             </Button>
           </form>
         </DialogContent>

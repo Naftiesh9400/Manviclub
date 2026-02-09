@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth, MembershipPlan } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Crown, Star, Zap, CreditCard, CheckCircle2, Mail, Sparkles } from "lucide-react";
-import { getFirestore, collection, addDoc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs, query, orderBy } from "firebase/firestore";
 
 declare global {
   interface Window {
@@ -23,16 +23,17 @@ declare global {
 
 const MembershipSection = () => {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<typeof plans[0] | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<any | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [email, setEmail] = useState("");
+  const [plans, setPlans] = useState<any[]>([]);
 
-  const { user, setMembershipPlan } = useAuth();
+  const { user, setMembershipPlan, membership } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const plans = [
+  const defaultPlans = [
     {
       name: "Basic" as const,
       planId: "basic" as MembershipPlan,
@@ -94,7 +95,46 @@ const MembershipSection = () => {
     },
   ];
 
-  const handleSelectPlan = (plan: typeof plans[0]) => {
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const db = getFirestore();
+        const q = query(collection(db, "membershipPlans"), orderBy("price", "asc"));
+        const snapshot = await getDocs(q);
+        
+        if (!snapshot.empty) {
+          const fetchedPlans = snapshot.docs.map(doc => {
+            const data = doc.data();
+            // Determine icon and style based on plan name or price
+            let Icon = Zap;
+            if (data.name.toLowerCase().includes('premium')) Icon = Star;
+            if (data.name.toLowerCase().includes('elite')) Icon = Crown;
+
+            return {
+              name: data.name,
+              planId: data.planId,
+              icon: Icon,
+              price: `₹${data.price.toLocaleString()}`,
+              priceValue: data.price,
+              period: `per ${data.interval}`,
+              description: data.description,
+              features: data.features,
+              popular: data.name.toLowerCase().includes('premium'),
+              buttonVariant: data.name.toLowerCase().includes('elite') ? "accent" : data.name.toLowerCase().includes('premium') ? "hero" : "outline"
+            };
+          });
+          setPlans(fetchedPlans);
+        } else {
+          setPlans(defaultPlans);
+        }
+      } catch (e) {
+        setPlans(defaultPlans);
+      }
+    };
+    fetchPlans();
+  }, []);
+
+  const handleSelectPlan = (plan: any) => {
     if (!user) {
       toast({
         title: "Login Required",
@@ -136,31 +176,36 @@ const MembershipSection = () => {
       name: "Manvi Fishing Club",
       description: `${selectedPlan.name} Membership - 1 Year`,
       image: "/favicon.ico",
-      handler: function (response: any) {
-        // Payment successful
-        console.log("Payment successful:", response);
-        
-        // Record transaction
-        addDoc(collection(db, "transactions"), {
-          userId: user?.uid,
-          userName: user?.displayName || "Unknown",
-          userEmail: email,
-          plan: selectedPlan.planId,
-          amount: selectedPlan.priceValue,
-          razorpayPaymentId: response.razorpay_payment_id,
-          date: new Date(),
-          status: "success"
-        });
+      handler: async function (response: any) {
+        try {
+          console.log("Payment successful:", response);
+          
+          // Record transaction in 'payments' collection so it shows in Admin Dashboard
+          await addDoc(collection(db, "payments"), {
+            userId: user?.uid,
+            userName: user?.displayName || "Unknown",
+            userEmail: email,
+            plan: selectedPlan.planId,
+            amount: selectedPlan.priceValue,
+            razorpayPaymentId: response.razorpay_payment_id,
+            type: `membership_${selectedPlan.planId}`,
+            date: new Date(),
+            status: "completed"
+          });
 
-        setMembershipPlan(selectedPlan.planId).then(() => {
-        setIsSuccess(true);
-        setIsProcessing(false);
-        
-        toast({
-          title: "Payment Successful! 🎉",
-          description: `Welcome to ${selectedPlan.name} membership!`,
-        });
-        });
+          await setMembershipPlan(selectedPlan.planId);
+          
+          setIsSuccess(true);
+          toast({
+            title: "Payment Successful! 🎉",
+            description: `Welcome to ${selectedPlan.name} membership!`,
+          });
+        } catch (error) {
+          console.error("Payment processing error:", error);
+          toast({ title: "Error", description: "Payment succeeded but profile update failed.", variant: "destructive" });
+        } finally {
+          setIsProcessing(false);
+        }
       },
       prefill: {
         email: email,
@@ -267,8 +312,9 @@ const MembershipSection = () => {
                 className="w-full" 
                 size="lg"
                 onClick={() => handleSelectPlan(plan)}
+                disabled={membership?.plan === plan.planId}
               >
-                Get {plan.name}
+                {membership?.plan === plan.planId ? "Current Plan" : `Get ${plan.name}`}
               </Button>
             </div>
           ))}

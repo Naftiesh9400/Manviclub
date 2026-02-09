@@ -16,7 +16,8 @@ const Header = () => {
     { name: "Tournaments", href: "/tournaments" },
     { name: "Gallery", href: "/gallery" },
     { name: "Membership", href: "/#membership" },
-    { name: "Careers", href: "/#careers" },
+    { name: "Careers", href: "/careers" },
+   
   ];
 
   const handleLogout = async () => {

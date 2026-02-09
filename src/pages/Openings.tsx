@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import Header from "@/components/layout/Header";
+import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
-import { Briefcase, Clock, MapPin, ArrowRight, Send, Loader2 } from "lucide-react";
-import { getFirestore, collection, query, orderBy, limit, getDocs, addDoc } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,40 +12,62 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Briefcase, MapPin, Clock, Loader2, Send, Search } from "lucide-react";
+import { getFirestore, collection, getDocs, addDoc, query, orderBy } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
 
-const CareersSection = () => {
-  const [jobs, setJobs] = useState<any[]>([]);
-  const navigate = useNavigate();
-  const { toast } = useToast();
+interface Job {
+  id: string;
+  title: string;
+  description: string;
+  type: string;
+  location: string;
+}
+
+const Openings = () => {
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [filteredJobs, setFilteredJobs] = useState<Job[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
   
+  // Application state
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [isApplicationOpen, setIsApplicationOpen] = useState(false);
-  const [selectedJob, setSelectedJob] = useState<any>(null);
   const [formData, setFormData] = useState<any>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchJobs = async () => {
       try {
         const db = getFirestore();
-        const q = query(collection(db, "careers"), orderBy("createdAt", "desc"), limit(3));
+        const q = query(collection(db, "careers"), orderBy("createdAt", "desc"));
         const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-          setJobs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        } else {
-          // Fallback if no jobs in DB
-          setJobs([]);
-        }
+        const jobsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Job));
+        setJobs(jobsData);
+        setFilteredJobs(jobsData);
       } catch (error) {
-        console.error("Error fetching jobs for section:", error);
+        console.error("Error fetching jobs:", error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchJobs();
   }, []);
 
-  const handleApply = (job: any | null) => {
+  useEffect(() => {
+    const filtered = jobs.filter(job => 
+      job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      job.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      job.type.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredJobs(filtered);
+  }, [searchTerm, jobs]);
+
+  const handleApply = (job: Job | null) => {
     setSelectedJob(job);
     setFormData({
       jobId: job?.id || 'general',
@@ -107,97 +127,75 @@ const CareersSection = () => {
   };
 
   return (
-    <section id="careers" className="section-padding bg-primary">
-      <div className="container-custom">
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          {/* Left Content */}
-          <div>
-            <div className="inline-flex items-center gap-2 bg-secondary/20 rounded-full px-4 py-2 mb-6">
+    <div className="min-h-screen bg-background">
+      <Header />
+      <main className="pt-24 pb-16">
+        <div className="container-custom px-4">
+          <div className="text-center max-w-3xl mx-auto mb-12">
+            <div className="inline-flex items-center gap-2 bg-secondary/10 rounded-full px-4 py-2 mb-6">
               <Briefcase className="w-4 h-4 text-secondary" />
-              <span className="text-sm font-medium text-secondary">Join Our Team</span>
+              <span className="text-sm font-medium text-secondary">Current Openings</span>
             </div>
-            <h2 className="font-display text-3xl md:text-4xl lg:text-5xl font-bold text-primary-foreground mb-6">
-              Build Your Career With{" "}
-              <span className="text-secondary">Manvi</span>
-            </h2>
-            <p className="text-lg text-primary-foreground/80 leading-relaxed mb-8">
-              We're always looking for passionate individuals who share our love for 
-              fishing and community building. Join a dynamic team that's shaping the 
-              future of recreational fishing in India.
+            <h1 className="font-display text-4xl md:text-5xl font-bold text-foreground mb-6">
+              Join Our <span className="text-secondary">Team</span>
+            </h1>
+            <p className="text-lg text-muted-foreground leading-relaxed mb-8">
+              Explore exciting opportunities to work with Manvi Fishing Club.
             </p>
+            
+            <div className="relative max-w-md mx-auto">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input 
+                placeholder="Search by role or location..." 
+                className="pl-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
 
-            <div className="space-y-4 mb-8">
-              {[
-                "Competitive compensation packages",
-                "Flexible working arrangements",
-                "Professional development opportunities",
-                "Access to all club facilities and events",
-              ].map((benefit, index) => (
-                <div key={index} className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-secondary" />
-                  <span className="text-primary-foreground/80">{benefit}</span>
+          {isLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : filteredJobs.length === 0 ? (
+            <div className="text-center py-12 bg-muted/30 rounded-xl">
+              <p className="text-muted-foreground">No positions found matching your search.</p>
+              <Button variant="link" onClick={() => setSearchTerm("")}>Clear Search</Button>
+            </div>
+          ) : (
+            <div className="grid gap-6 max-w-4xl mx-auto">
+              {filteredJobs.map((job) => (
+                <div key={job.id} className="bg-card p-6 rounded-xl border shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-foreground mb-2">{job.title}</h3>
+                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mb-3">
+                        <span className="flex items-center gap-1"><Clock className="w-4 h-4" /> {job.type}</span>
+                        <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {job.location}</span>
+                      </div>
+                      <p className="text-muted-foreground">{job.description}</p>
+                    </div>
+                    <Button className="shrink-0" onClick={() => handleApply(job)}>Apply Now</Button>
+                  </div>
                 </div>
               ))}
             </div>
+          )}
 
-            <Link to="/openings">
-              <Button variant="aqua" size="lg" className="group">
-                View All Openings
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </Link>
-          </div>
-
-          {/* Right - Job Cards */}
-          <div className="space-y-4">
-            {jobs.length > 0 ? jobs.map((job) => (
-              <div
-                key={job.id}
-                className="bg-primary-foreground/10 backdrop-blur-sm border border-primary-foreground/20 rounded-xl p-6 hover:bg-primary-foreground/15 transition-colors group"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-                  <h3 className="font-display text-xl font-semibold text-primary-foreground">
-                    {job.title}
-                  </h3>
-                  <Button variant="heroOutline" size="sm" className="group-hover:bg-primary-foreground/10" onClick={() => handleApply(job)}>
-                    Apply
-                  </Button>
-                </div>
-
-                <p className="text-primary-foreground/70 text-sm mb-4">
-                  {job.description}
-                </p>
-
-                <div className="flex flex-wrap gap-4">
-                  <div className="flex items-center gap-2 text-primary-foreground/60 text-sm">
-                    <Clock className="w-4 h-4" />
-                    <span>{job.type}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-primary-foreground/60 text-sm">
-                    <MapPin className="w-4 h-4" />
-                    <span>{job.location}</span>
-                  </div>
-                </div>
-              </div>
-            )) : (
-              <div className="text-primary-foreground/60 text-center py-8 border border-primary-foreground/20 rounded-xl">
-                Check our careers page for openings.
-              </div>
-            )}
-
-            <div className="text-center pt-4">
-              <p className="text-primary-foreground/60 text-sm">
-                Don't see a perfect fit?{" "}
-                <button onClick={() => handleApply(null)} className="text-secondary hover:underline font-medium">
-                  Send us your resume
-                </button>
-              </p>
-            </div>
+          <div className="mt-16 text-center bg-muted/30 p-8 rounded-2xl max-w-3xl mx-auto">
+            <h3 className="text-xl font-semibold mb-2">Don't see a perfect fit?</h3>
+            <p className="text-muted-foreground mb-6">
+              Send us your resume and we'll keep it on file for future opportunities.
+            </p>
+            <Button variant="outline" onClick={() => handleApply(null)}>
+              <Send className="w-4 h-4 mr-2" /> Send Your Resume
+            </Button>
           </div>
         </div>
-      </div>
+      </main>
+      <Footer />
 
-      {/* Application Modal */}
       <Dialog open={isApplicationOpen} onOpenChange={setIsApplicationOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -248,8 +246,8 @@ const CareersSection = () => {
           </form>
         </DialogContent>
       </Dialog>
-    </section>
+    </div>
   );
 };
 
-export default CareersSection;
+export default Openings;

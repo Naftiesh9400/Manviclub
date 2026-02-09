@@ -1,39 +1,44 @@
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Trophy, Calendar, MapPin, Users, ArrowRight } from "lucide-react";
-import tournament1 from "@/assets/tournament-1.jpg";
-import tournament2 from "@/assets/tournament-2.jpg";
-import tournament3 from "@/assets/tournament-3.jpg";
+import { Trophy, Calendar, MapPin, Users, ArrowRight, Loader2 } from "lucide-react";
+import { getFirestore, collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 
 const TournamentsSection = () => {
-  const tournaments = [
-    {
-      image: tournament1,
-      title: "Spring Bass Challenge",
-      date: "March 15-17, 2025",
-      location: "Krishna River",
-      participants: "120 Spots",
-      prize: "₹2,50,000",
-      status: "Open",
-    },
-    {
-      image: tournament2,
-      title: "Summer Catch Classic",
-      date: "June 20-22, 2025",
-      location: "Tungabhadra Dam",
-      participants: "100 Spots",
-      prize: "₹3,00,000",
-      status: "Coming Soon",
-    },
-    {
-      image: tournament3,
-      title: "Night Fishing Tournament",
-      date: "August 8-10, 2025",
-      location: "Almatti Dam",
-      participants: "80 Spots",
-      prize: "₹1,75,000",
-      status: "Coming Soon",
-    },
-  ];
+  const [tournaments, setTournaments] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchTournaments = async () => {
+      try {
+        const db = getFirestore();
+        // Fetch upcoming tournaments, limited to 3 for the home page
+        const q = query(
+          collection(db, "tournaments"),
+          where("status", "in", ["upcoming", "open"]),
+          limit(3)
+        );
+        
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        // Sort by date manually to avoid needing a composite index immediately
+        data.sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        setTournaments(data);
+      } catch (error) {
+        console.error("Error fetching tournaments:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTournaments();
+  }, []);
 
   return (
     <section id="tournaments" className="section-padding bg-muted">
@@ -55,38 +60,45 @@ const TournamentsSection = () => {
         </div>
 
         {/* Tournament Cards */}
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
-          {tournaments.map((tournament, index) => (
-            <div key={index} className="card-premium overflow-hidden group">
+          {tournaments.map((tournament) => (
+            <div key={tournament.id} className="card-premium overflow-hidden group">
               {/* Image */}
               <div className="relative h-48 overflow-hidden">
                 <img
-                  src={tournament.image}
-                  alt={tournament.title}
+                  src={tournament.image || "https://images.unsplash.com/photo-1544551763-46a8723ba3f9?auto=format&fit=crop&q=80&w=1000"}
+                  alt={tournament.name}
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                 />
                 <div className="absolute top-4 right-4">
                   <span
                     className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      tournament.status === "Open"
+                      tournament.status === "upcoming" || tournament.status === "open"
                         ? "bg-secondary text-secondary-foreground"
                         : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    {tournament.status}
+                    {tournament.status === "open" ? "Registration Open" : tournament.status}
                   </span>
                 </div>
-                <div className="absolute bottom-4 left-4">
-                  <span className="bg-accent text-accent-foreground px-3 py-1 rounded-lg text-sm font-bold">
-                    Prize: {tournament.prize}
-                  </span>
-                </div>
+                {tournament.prize && (
+                  <div className="absolute bottom-4 left-4">
+                    <span className="bg-accent text-accent-foreground px-3 py-1 rounded-lg text-sm font-bold">
+                      Prize: {tournament.prize}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Content */}
               <div className="p-6">
                 <h3 className="font-display text-xl font-semibold text-foreground mb-4">
-                  {tournament.title}
+                  {tournament.name}
                 </h3>
 
                 <div className="space-y-3 mb-6">
@@ -100,25 +112,27 @@ const TournamentsSection = () => {
                   </div>
                   <div className="flex items-center gap-3 text-muted-foreground text-sm">
                     <Users className="w-4 h-4 text-secondary" />
-                    <span>{tournament.participants}</span>
+                    <span>{tournament.maxParticipants} Spots</span>
                   </div>
                 </div>
 
                 <Button
-                  variant={tournament.status === "Open" ? "hero" : "outline"}
+                  variant="hero"
                   className="w-full"
-                  disabled={tournament.status !== "Open"}
+                  onClick={() => navigate("/tournaments")}
                 >
-                  {tournament.status === "Open" ? "Register Now" : "Notify Me"}
+                  {tournament.status === "open" ? "Register Now" : "View Details"}
                 </Button>
               </div>
             </div>
           ))}
+          {tournaments.length === 0 && <p className="col-span-full text-center text-muted-foreground">No upcoming tournaments scheduled.</p>}
         </div>
+        )}
 
         {/* View All Link */}
         <div className="text-center">
-          <Button variant="outline" size="lg" className="group">
+          <Button variant="outline" size="lg" className="group" onClick={() => navigate("/tournaments")}>
             View All Tournaments
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </Button>

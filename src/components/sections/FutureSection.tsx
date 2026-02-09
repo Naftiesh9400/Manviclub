@@ -1,6 +1,13 @@
-import { CreditCard, Package, Smartphone, Sparkles, Store, Ticket } from "lucide-react";
+import { useState } from "react";
+import { CreditCard, Package, Smartphone, Sparkles, Store, Ticket, Loader2 } from "lucide-react";
+import { getFirestore, collection, addDoc } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
 
 const FutureSection = () => {
+  const [email, setEmail] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
   const upcomingFeatures = [
     {
       icon: Store,
@@ -39,6 +46,53 @@ const FutureSection = () => {
       status: "In Research",
     },
   ];
+
+  const handleSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+
+    setIsLoading(true);
+    try {
+      const db = getFirestore();
+      await addDoc(collection(db, "newsletter_subscribers"), {
+        email,
+        subscribedAt: new Date()
+      });
+      
+      // Send welcome email (Requires Firebase "Trigger Email" Extension installed)
+      await addDoc(collection(db, "mail"), {
+        to: email,
+        message: {
+          subject: "Welcome to Manvi Fishing Club!",
+          html: `
+            <div style="font-family: sans-serif; padding: 20px;">
+              <h1 style="color: #0284c7;">Welcome Aboard! 🎣</h1>
+              <p>Thanks for subscribing to our newsletter.</p>
+              <p>We'll keep you posted on upcoming tournaments, events, and new features.</p>
+              <br/>
+              <p>Best regards,</p>
+              <p><strong>Manvi Fishing Club Team</strong></p>
+            </div>
+          `
+        }
+      });
+
+      toast({
+        title: "Subscribed!",
+        description: "You've been added to our newsletter.",
+      });
+      setEmail("");
+    } catch (error) {
+      console.error("Error subscribing:", error);
+      toast({
+        title: "Error",
+        description: "Failed to subscribe. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <section className="section-padding bg-muted relative overflow-hidden">
@@ -106,17 +160,21 @@ const FutureSection = () => {
             <p className="text-muted-foreground mb-6">
               Be the first to know when new features launch. Join our newsletter.
             </p>
-            <form className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+            <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
               <input
                 type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
                 className="flex-1 px-4 py-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-secondary"
               />
               <button
                 type="submit"
+                disabled={isLoading}
                 className="px-6 py-3 bg-gradient-ocean text-primary-foreground rounded-lg font-semibold hover:opacity-90 transition-opacity"
               >
-                Subscribe
+                {isLoading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Subscribe"}
               </button>
             </form>
           </div>

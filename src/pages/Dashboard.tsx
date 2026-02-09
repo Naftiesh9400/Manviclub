@@ -1,9 +1,17 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Crown, 
   Star, 
@@ -21,16 +29,110 @@ import {
   Shield,
   Loader2
 } from "lucide-react";
+import { getFirestore, collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
 
 const Dashboard = () => {
-  const { user, membership, logout, isAdmin, loading } = useAuth();
+  const { user, membership, logout, isAdmin, loading, cancelMembership } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [displayFeatures, setDisplayFeatures] = useState<any[]>([]);
+  const [featuresLoading, setFeaturesLoading] = useState(true);
+  const [isCancelOpen, setIsCancelOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
       navigate("/auth");
     }
   }, [user, loading, navigate]);
+
+  useEffect(() => {
+    const fetchPlanData = async () => {
+      if (!user) return;
+      const db = getFirestore();
+      
+      let featuresToDisplay: string[] = [];
+      let isUnlocked = false;
+
+      try {
+        if (membership.plan) {
+          // User has a plan, fetch its specific features
+          // Try to find by planId first (exact or lowercase)
+          let q = query(collection(db, "membershipPlans"), where("planId", "==", membership.plan));
+          let snapshot = await getDocs(q);
+          
+          if (snapshot.empty) {
+             q = query(collection(db, "membershipPlans"), where("planId", "==", membership.plan.toLowerCase()));
+             snapshot = await getDocs(q);
+          }
+
+          if (!snapshot.empty) {
+            const data = snapshot.docs[0].data();
+            featuresToDisplay = data.features || [];
+            isUnlocked = true;
+          } else {
+            // Fallback if plan not found in DB but exists in user profile
+            featuresToDisplay = [
+              "Access to member events",
+              "Community forum access",
+              "Photo Gallery access",
+              "Tournament participation"
+            ];
+            isUnlocked = true;
+          }
+        } else {
+          // No plan, fetch the "Elite" or best plan to show what they are missing
+          const q = query(collection(db, "membershipPlans"), orderBy("price", "desc"), limit(1));
+          const snapshot = await getDocs(q);
+          if (!snapshot.empty) {
+            const data = snapshot.docs[0].data();
+            featuresToDisplay = data.features || [];
+          } else {
+             // Fallback defaults if no plans in DB
+             featuresToDisplay = [
+              "Member Events",
+              "Community Forum",
+              "Photo Gallery",
+              "Tournament Priority",
+              "Expert Mentorship",
+              "VIP Access"
+             ];
+          }
+          isUnlocked = false;
+        }
+
+        // Map features to UI objects with icons and links
+        const mappedFeatures = featuresToDisplay.map(feature => {
+          const lower = feature.toLowerCase();
+          let icon = Check;
+          let link = null;
+
+          if (lower.includes("tournament")) { icon = Trophy; link = "/tournaments"; }
+          else if (lower.includes("gallery") || lower.includes("photo")) { icon = Camera; link = "/gallery"; }
+          else if (lower.includes("event")) { icon = Calendar; }
+          else if (lower.includes("forum") || lower.includes("community")) { icon = Users; }
+          else if (lower.includes("shop") || lower.includes("merchandise")) { icon = Gift; }
+          else if (lower.includes("coach") || lower.includes("mentor")) { icon = Star; }
+          else if (lower.includes("vip") || lower.includes("boat")) { icon = Crown; }
+
+          return {
+            title: feature,
+            description: isUnlocked ? "Included in your plan" : "Available with membership",
+            icon,
+            link,
+            unlocked: isUnlocked
+          };
+        });
+
+        setDisplayFeatures(mappedFeatures);
+      } catch (error) {
+        console.error("Error fetching dashboard features:", error);
+      } finally {
+        setFeaturesLoading(false);
+      }
+    };
+
+    fetchPlanData();
+  }, [user, membership.plan]);
 
   if (loading) {
     return (
@@ -43,7 +145,7 @@ const Dashboard = () => {
   if (!user) return null;
 
   const getPlanIcon = () => {
-    switch (membership.plan) {
+    switch (membership.plan?.toLowerCase()) {
       case "elite":
         return <Crown className="w-8 h-8 text-accent" />;
       case "premium":
@@ -56,7 +158,7 @@ const Dashboard = () => {
   };
 
   const getPlanColor = () => {
-    switch (membership.plan) {
+    switch (membership.plan?.toLowerCase()) {
       case "elite":
         return "from-accent/20 to-accent/5 border-accent/30";
       case "premium":
@@ -68,63 +170,31 @@ const Dashboard = () => {
     }
   };
 
-  const getExclusiveContent = () => {
-    const allContent = [
-      { 
-        title: "Member Events", 
-        description: "Access to exclusive fishing events", 
-        icon: Calendar, 
-        plans: ["basic", "premium", "elite"] 
-      },
-      { 
-        title: "Community Forum", 
-        description: "Connect with fellow anglers", 
-        icon: Users, 
-        plans: ["basic", "premium", "elite"] 
-      },
-      { 
-        title: "Photo Gallery", 
-        description: "Share and view catch photos", 
-        icon: Camera, 
-        plans: ["basic", "premium", "elite"],
-        link: "/gallery"
-      },
-      { 
-        title: "Tournament Priority", 
-        description: "Priority registration for tournaments", 
-        icon: Trophy, 
-        plans: ["premium", "elite"],
-        link: "/tournaments"
-      },
-      { 
-        title: "Expert Mentorship", 
-        description: "One-on-one guidance from pros", 
-        icon: Star, 
-        plans: ["premium", "elite"] 
-      },
-      { 
-        title: "VIP Access", 
-        description: "Exclusive boat trips & locations", 
-        icon: Crown, 
-        plans: ["elite"] 
-      },
-      { 
-        title: "Personal Coach", 
-        description: "Dedicated fishing coach", 
-        icon: Gift, 
-        plans: ["elite"] 
-      },
-    ];
-
-    return allContent.map((content) => ({
-      ...content,
-      unlocked: membership.plan ? content.plans.includes(membership.plan) : false,
-    }));
-  };
+  const daysLeft = membership.expiresAt 
+    ? Math.ceil((membership.expiresAt.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) 
+    : null;
 
   const handleLogout = async () => {
     await logout();
     navigate("/");
+  };
+
+  const handleCancelMembership = async () => {
+    try {
+      await cancelMembership();
+      setIsCancelOpen(false);
+      toast({
+        title: "Membership Cancelled",
+        description: "Your membership has been cancelled successfully.",
+      });
+    } catch (error) {
+      console.error("Error cancelling membership:", error);
+      toast({
+        title: "Error",
+        description: "Failed to cancel membership. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -162,43 +232,46 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              {!membership.plan ? (
-                <Link to="/#membership">
-                  <Button variant="hero" size="lg" className="gap-2">
-                    <Sparkles className="w-4 h-4" />
-                    Upgrade Now
-                  </Button>
-                </Link>
-              ) : membership.plan !== "elite" ? (
-                <Link to="/#membership">
-                  <Button variant="accent" size="lg" className="gap-2">
-                    <Crown className="w-4 h-4" />
-                    Upgrade Plan
-                  </Button>
-                </Link>
-              ) : null}
+              <div className="flex flex-col sm:flex-row gap-3">
+                {daysLeft !== null && daysLeft <= 30 && (
+                  <Link to="/#membership">
+                    <Button variant="default" size="lg" className="gap-2 w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white">
+                      <Sparkles className="w-4 h-4" />
+                      Renew ({daysLeft} days left)
+                    </Button>
+                  </Link>
+                )}
+
+                {!membership.plan ? (
+                  <Link to="/#membership">
+                    <Button variant="hero" size="lg" className="gap-2 w-full sm:w-auto">
+                      <Sparkles className="w-4 h-4" />
+                      Upgrade Now
+                    </Button>
+                  </Link>
+                ) : membership.plan?.toLowerCase() !== "elite" ? (
+                  <Link to="/#membership">
+                    <Button variant="accent" size="lg" className="gap-2 w-full sm:w-auto">
+                      <Crown className="w-4 h-4" />
+                      Upgrade Plan
+                    </Button>
+                  </Link>
+              ) : (
+                <Button 
+                  variant="ghost" 
+                  size="lg" 
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto"
+                  onClick={() => setIsCancelOpen(true)}
+                >
+                  Cancel Membership
+                </Button>
+              )}
+              </div>
             </div>
           </div>
 
           {/* Quick Actions */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-            {isAdmin && (
-              <Link to="/admin" className="card-premium p-6 text-center hover:scale-105 transition-transform border-accent/50 bg-accent/5">
-                <Shield className="w-8 h-8 text-accent mx-auto mb-3" />
-                <h3 className="font-semibold text-foreground">Admin</h3>
-                <p className="text-sm text-muted-foreground">Dashboard</p>
-              </Link>
-            )}
-            <Link to="/tournaments" className="card-premium p-6 text-center hover:scale-105 transition-transform">
-              <Trophy className="w-8 h-8 text-secondary mx-auto mb-3" />
-              <h3 className="font-semibold text-foreground">Tournaments</h3>
-              <p className="text-sm text-muted-foreground">View & Register</p>
-            </Link>
-            <Link to="/gallery" className="card-premium p-6 text-center hover:scale-105 transition-transform">
-              <Camera className="w-8 h-8 text-secondary mx-auto mb-3" />
-              <h3 className="font-semibold text-foreground">Gallery</h3>
-              <p className="text-sm text-muted-foreground">Photos & Catches</p>
-            </Link>
             <div className="card-premium p-6 text-center opacity-50 cursor-not-allowed">
               <Users className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
               <h3 className="font-semibold text-foreground">Community</h3>
@@ -214,10 +287,13 @@ const Dashboard = () => {
           {/* Exclusive Content */}
           <div className="mb-12">
             <h2 className="font-display text-2xl font-bold text-foreground mb-6">
-              Exclusive Content & Benefits
+              {membership.plan ? "Your Plan Benefits" : "Exclusive Content & Benefits"}
             </h2>
+            {featuresLoading ? (
+              <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>
+            ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {getExclusiveContent().map((content, index) => (
+              {displayFeatures.map((content, index) => (
                 <div
                   key={index}
                   className={`card-premium p-6 ${
@@ -259,6 +335,7 @@ const Dashboard = () => {
                 </div>
               ))}
             </div>
+            )}
           </div>
 
           {/* Account Actions */}
@@ -270,6 +347,27 @@ const Dashboard = () => {
           </div>
         </div>
       </main>
+
+      <Dialog open={isCancelOpen} onOpenChange={setIsCancelOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Membership?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel your {membership.plan} membership? 
+              You will lose access to exclusive features immediately. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button variant="outline" onClick={() => setIsCancelOpen(false)}>
+              Keep Membership
+            </Button>
+            <Button variant="destructive" onClick={handleCancelMembership}>
+              Yes, Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Footer />
     </div>
   );

@@ -1,23 +1,43 @@
+import { useState, useEffect } from "react";
 import { Facebook, Instagram, Twitter, Youtube, Mail, Phone, MapPin } from "lucide-react";
 import logo from "@/assets/manvi2.png";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
 
 const Footer = () => {
-  const quickLinks = [
+  const [data, setData] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchFooter = async () => {
+      try {
+        const db = getFirestore();
+        const docRef = doc(db, "site_settings", "footer");
+        const snapshot = await getDoc(docRef);
+        if (snapshot.exists()) {
+          setData(snapshot.data());
+        }
+      } catch (error) {
+        console.error("Error fetching footer settings:", error);
+      }
+    };
+    fetchFooter();
+  }, []);
+
+  const quickLinks = data?.quickLinks || [
     { name: "About Us", href: "#about" },
     { name: "Tournaments", href: "#tournaments" },
     { name: "Membership", href: "#membership" },
-    { name: "Gallery", href: "#" },
-    { name: "Blog", href: "#" },
+    { name: "Gallery", href: "/gallery" },
+    { name: "Careers", href: "/careers" },
   ];
 
-  const supportLinks = [
+  const supportLinks = data?.supportLinks || [
     { name: "Help Center", href: "#" },
     { name: "Contact Us", href: "#" },
     { name: "FAQs", href: "#" },
     { name: "Feedback", href: "#" },
   ];
 
-  const legalLinks = [
+  const legalLinks = data?.legalLinks || [
     { name: "Privacy Policy", href: "#" },
     { name: "Terms of Service", href: "#" },
     { name: "Cookie Policy", href: "#" },
@@ -25,11 +45,11 @@ const Footer = () => {
   ];
 
   const socialLinks = [
-    { icon: Facebook, href: "#", label: "Facebook" },
-    { icon: Instagram, href: "#", label: "Instagram" },
-    { icon: Twitter, href: "#", label: "Twitter" },
-    { icon: Youtube, href: "#", label: "YouTube" },
-  ];
+    { icon: Facebook, href: data?.social?.facebook || "#", label: "Facebook", show: !!data?.social?.facebook || !data || !data?.social },
+    { icon: Instagram, href: data?.social?.instagram || "#", label: "Instagram", show: !!data?.social?.instagram || !data || !data?.social },
+    { icon: Twitter, href: data?.social?.twitter || "#", label: "Twitter", show: !!data?.social?.twitter || !data || !data?.social },
+    { icon: Youtube, href: data?.social?.youtube || "#", label: "YouTube", show: !!data?.social?.youtube || !data || !data?.social },
+  ].filter(s => s.show);
 
   return (
     <footer id="footer" className="bg-white text-primary border-t border-primary/10">
@@ -48,23 +68,22 @@ const Footer = () => {
               </div>
             </a>
             <p className="text-primary/70 mb-6 max-w-sm leading-relaxed">
-              Karnataka's premier fishing community. Join us for unforgettable 
-              fishing experiences, exciting tournaments, and a passion for the waters.
+              {data?.description || "Karnataka's premier fishing community. Join us for unforgettable fishing experiences, exciting tournaments, and a passion for the waters."}
             </p>
 
             {/* Contact Info */}
             <div className="space-y-3">
               <div className="flex items-center gap-3 text-primary/70 text-sm">
                 <MapPin className="w-4 h-4 text-secondary" />
-                <span>Manvi, Raichur District, Karnataka 584123</span>
+                <span>{data?.contact?.address || "Manvi, Raichur District, Karnataka 584123"}</span>
               </div>
               <div className="flex items-center gap-3 text-primary/70 text-sm">
                 <Phone className="w-4 h-4 text-secondary" />
-                <span>+91 98765 43210</span>
+                <span>{data?.contact?.phone || "+91 98765 43210"}</span>
               </div>
               <div className="flex items-center gap-3 text-primary/70 text-sm">
                 <Mail className="w-4 h-4 text-secondary" />
-                <span>info@manvifishingclub.com</span>
+                <span>{data?.contact?.email || "info@manvifishingclub.com"}</span>
               </div>
             </div>
           </div>
@@ -73,8 +92,8 @@ const Footer = () => {
           <div>
             <h4 className="font-display text-lg font-semibold mb-4 text-primary">Quick Links</h4>
             <ul className="space-y-3">
-              {quickLinks.map((link) => (
-                <li key={link.name}>
+              {quickLinks.map((link: any, i: number) => (
+                <li key={i}>
                   <a
                     href={link.href}
                     className="text-primary/70 hover:text-primary transition-colors text-sm"
@@ -90,8 +109,8 @@ const Footer = () => {
           <div>
             <h4 className="font-display text-lg font-semibold mb-4 text-primary">Support</h4>
             <ul className="space-y-3">
-              {supportLinks.map((link) => (
-                <li key={link.name}>
+              {supportLinks.map((link: any, i: number) => (
+                <li key={i}>
                   <a
                     href={link.href}
                     className="text-primary/70 hover:text-primary transition-colors text-sm"
@@ -107,8 +126,8 @@ const Footer = () => {
           <div>
             <h4 className="font-display text-lg font-semibold mb-4 text-primary">Legal</h4>
             <ul className="space-y-3">
-              {legalLinks.map((link) => (
-                <li key={link.name}>
+              {legalLinks.map((link: any, i: number) => (
+                <li key={i}>
                   <a
                     href={link.href}
                     className="text-primary/70 hover:text-primary transition-colors text-sm"
@@ -127,7 +146,7 @@ const Footer = () => {
         <div className="container-custom px-4 py-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-primary/60 text-sm text-center md:text-left">
-              © 2025 Manvi Fishing Club. All rights reserved.
+              © {new Date().getFullYear()} Manvi Fishing Club. All rights reserved.
             </p>
 
             {/* Social Links */}
@@ -137,6 +156,8 @@ const Footer = () => {
                   key={social.label}
                   href={social.href}
                   aria-label={social.label}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center hover:bg-secondary transition-colors group"
                 >
                   <social.icon className="w-5 h-5 text-primary/70 group-hover:text-secondary-foreground transition-colors" />
@@ -146,7 +167,7 @@ const Footer = () => {
 
             {/* Member Login */}
             <a
-              href="#"
+              href="/auth"
               className="text-secondary hover:text-secondary/80 text-sm font-medium transition-colors"
             >
               Member Login →

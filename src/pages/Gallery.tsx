@@ -1,17 +1,22 @@
 import { useState, useEffect } from "react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import { Camera, X, ChevronLeft, ChevronRight, Heart, Download, Share2, Loader2 } from "lucide-react";
-import { getFirestore, collection, getDocs } from "firebase/firestore";
+import { getFirestore, collection, getDocs, doc, updateDoc, arrayUnion, arrayRemove, increment } from "firebase/firestore";
 
 interface GalleryImage {
   id: string;
-  src: string;
+  url?: string;
+  src?: string;
+  image?: string;
   title: string;
   description: string;
-  category: "catches" | "events" | "members";
+  category: "catches" | "events" | "tournaments";
   likes: number;
+  likedBy?: string[];
   author: string;
   date: string;
 }
@@ -19,8 +24,11 @@ interface GalleryImage {
 const Gallery = () => {
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<"all" | "catches" | "events" | "members">("all");
+  const [selectedCategory, setSelectedCategory] = useState<"all" | "catches" | "events" | "tournaments">("all");
   const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const db = getFirestore();
 
   useEffect(() => {
     const fetchGallery = async () => {
@@ -46,7 +54,7 @@ const Gallery = () => {
     { id: "all", label: "All Photos", count: galleryImages.length },
     { id: "catches", label: "Catches", count: galleryImages.filter(i => i.category === "catches").length },
     { id: "events", label: "Events", count: galleryImages.filter(i => i.category === "events").length },
-    { id: "members", label: "Members", count: galleryImages.filter(i => i.category === "members").length },
+    { id: "tournaments", label: "Tournaments", count: galleryImages.filter(i => i.category === "tournaments").length },
   ];
 
   const filteredImages = selectedCategory === "all" 
@@ -72,6 +80,91 @@ const Gallery = () => {
     if (e.key === "Escape") setLightboxImage(null);
     if (e.key === "ArrowLeft") navigateLightbox("prev");
     if (e.key === "ArrowRight") navigateLightbox("next");
+  };
+
+  const handleLike = async (image: GalleryImage, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) {
+      toast({
+        title: "Login Required",
+        description: "Please login to like photos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const imageRef = doc(db, "gallery", image.id);
+    const isLiked = image.likedBy?.includes(user.uid);
+
+    try {
+      if (isLiked) {
+        await updateDoc(imageRef, {
+          likes: increment(-1),
+          likedBy: arrayRemove(user.uid)
+        });
+        setGalleryImages(prev => prev.map(img => 
+          img.id === image.id 
+            ? { ...img, likes: img.likes - 1, likedBy: img.likedBy?.filter(id => id !== user.uid) }
+            : img
+        ));
+        if (lightboxImage?.id === image.id) {
+          setLightboxImage(prev => prev ? { ...prev, likes: prev.likes - 1, likedBy: prev.likedBy?.filter(id => id !== user.uid) } : null);
+        }
+      } else {
+        await updateDoc(imageRef, {
+          likes: increment(1),
+          likedBy: arrayUnion(user.uid)
+        });
+        setGalleryImages(prev => prev.map(img => 
+          img.id === image.id 
+            ? { ...img, likes: img.likes + 1, likedBy: [...(img.likedBy || []), user.uid] }
+            : img
+        ));
+        if (lightboxImage?.id === image.id) {
+          setLightboxImage(prev => prev ? { ...prev, likes: prev.likes + 1, likedBy: [...(prev.likedBy || []), user.uid] } : null);
+        }
+      }
+    } catch (error) {
+      console.error("Error liking image:", error);
+    }
+  };
+
+  const handleShare = async (image: GalleryImage, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: image.title,
+          text: image.description,
+          url: window.location.href,
+        });
+      } catch (error) {
+        console.log("Error sharing:", error);
+      }
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      toast({ title: "Link Copied", description: "Gallery link copied to clipboard." });
+    }
+  };
+
+  const handleDownload = async (image: GalleryImage, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const imageUrl = image.url || image.src || image.image || "";
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${image.title.replace(/\s+/g, "_")}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error downloading:", error);
+      toast({ title: "Download Failed", description: "Could not download image.", variant: "destructive" });
+    }
   };
 
   return (
@@ -130,7 +223,7 @@ const Gallery = () => {
                   onClick={() => setLightboxImage(image)}
                 >
                   <img
-                    src={image.src}
+                    src={image.url || image.src || image.image || "https://images.unsplash.com/photo-1544551763-46a8723ba3f9?auto=format&fit=crop&q=80&w=1000"}
                     alt={image.title}
                     className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                     loading="lazy"
@@ -195,7 +288,7 @@ const Gallery = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <img
-              src={lightboxImage.src}
+              src={lightboxImage.url || lightboxImage.src || lightboxImage.image || "https://images.unsplash.com/photo-1544551763-46a8723ba3f9?auto=format&fit=crop&q=80&w=1000"}
               alt={lightboxImage.title}
               className="max-h-[70vh] w-auto mx-auto object-contain rounded-lg"
             />
@@ -213,20 +306,20 @@ const Gallery = () => {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="icon">
-                    <Heart className="w-4 h-4" />
+                  <Button variant="outline" size="icon" onClick={(e) => handleLike(lightboxImage, e)}>
+                    <Heart className={`w-4 h-4 ${lightboxImage.likedBy?.includes(user?.uid || "") ? "fill-red-500 text-red-500" : ""}`} />
                   </Button>
-                  <Button variant="outline" size="icon">
+                  <Button variant="outline" size="icon" onClick={(e) => handleShare(lightboxImage, e)}>
                     <Share2 className="w-4 h-4" />
                   </Button>
-                  <Button variant="outline" size="icon">
+                  <Button variant="outline" size="icon" onClick={(e) => handleDownload(lightboxImage, e)}>
                     <Download className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
               <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border">
                 <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <Heart className="w-4 h-4 text-red-500" /> {lightboxImage.likes} likes
+                  <Heart className="w-4 h-4 text-red-500 fill-red-500" /> {lightboxImage.likes} likes
                 </span>
                 <span className="text-sm text-muted-foreground capitalize">
                   Category: {lightboxImage.category}
