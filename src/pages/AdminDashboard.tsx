@@ -1,17 +1,17 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { 
-  getFirestore, 
-  collection, 
-  getDocs, 
-  addDoc, 
-  deleteDoc, 
-  doc, 
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  addDoc,
+  deleteDoc,
+  doc,
   setDoc,
-  updateDoc, 
-  query, 
-  orderBy, 
+  updateDoc,
+  query,
+  orderBy,
   where,
   Timestamp,
   onSnapshot,
@@ -28,14 +28,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  LayoutDashboard, 
-  Trophy, 
-  Users, 
-  Image as ImageIcon, 
-  CreditCard, 
-  Plus, 
-  Trash2, 
+import {
+  LayoutDashboard,
+  Trophy,
+  Users,
+  Image as ImageIcon,
+  CreditCard,
+  Plus,
+  Trash2,
   Loader2,
   Save,
   X,
@@ -56,7 +56,7 @@ import {
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
-type Tab = "overview" | "tournaments" | "registrations" | "users" | "gallery" | "sales" | "memberships" | "jobs" | "applications" | "newsletter" | "leaderboard" | "settings";
+type Tab = "overview" | "tournaments" | "registrations" | "users" | "gallery" | "sales" | "memberships" | "jobs" | "applications" | "newsletter" | "leaderboard" | "notifications" | "settings";
 
 const AdminDashboard = () => {
   const { user, isAdmin, loading: authLoading } = useAuth();
@@ -67,7 +67,7 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [isLoading, setIsLoading] = useState(false);
   const [userFilter, setUserFilter] = useState<"all" | "google" | "email" | "tournament">("all");
-  
+
   // Data States
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [registrations, setRegistrations] = useState<any[]>([]);
@@ -79,6 +79,7 @@ const AdminDashboard = () => {
   const [applications, setApplications] = useState<any[]>([]);
   const [subscribers, setSubscribers] = useState<any[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   // Form States
   const [showForm, setShowForm] = useState(false);
@@ -126,7 +127,7 @@ const AdminDashboard = () => {
         const snapshot = await getDocs(q);
         setTournaments(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       }
-      
+
       if (tab === "overview" || tab === "users") {
         const snapshot = await getDocs(collection(db, "users"));
         setUsers(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -173,6 +174,12 @@ const AdminDashboard = () => {
         const q = query(collection(db, "leaderboard"), orderBy("rank", "asc"));
         const snapshot = await getDocs(q);
         setLeaderboard(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+
+      if (tab === "overview" || tab === "notifications") {
+        const q = query(collection(db, "notifications"), orderBy("createdAt", "desc"));
+        const snapshot = await getDocs(q);
+        setNotifications(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       }
 
       if (tab === "settings") {
@@ -501,8 +508,8 @@ const AdminDashboard = () => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const featuresList = typeof formData.features === 'string' 
-        ? formData.features.split('\n').filter((f: string) => f.trim()) 
+      const featuresList = typeof formData.features === 'string'
+        ? formData.features.split('\n').filter((f: string) => f.trim())
         : formData.features || [];
 
       const planData = {
@@ -680,28 +687,28 @@ const AdminDashboard = () => {
     if (leaderboard.length > 0 && !window.confirm("Leaderboard not empty. Add defaults?")) return;
     setIsLoading(true);
     try {
-        const defaultLeaderboard = [
-          { rank: 1, name: "Rajesh Kumar", catches: 24, weight: "45.2 kg", points: 1250 },
-          { rank: 2, name: "Anil Sharma", catches: 22, weight: "42.8 kg", points: 1180 },
-          { rank: 3, name: "Vikram Patel", catches: 21, weight: "40.5 kg", points: 1120 },
-          { rank: 4, name: "Suresh Reddy", catches: 20, weight: "38.9 kg", points: 1050 },
-          { rank: 5, name: "Mahesh Rao", catches: 19, weight: "37.2 kg", points: 980 },
-          { rank: 6, name: "Prakash Singh", catches: 18, weight: "35.8 kg", points: 920 },
-          { rank: 7, name: "Ravi Verma", catches: 17, weight: "34.1 kg", points: 870 },
-          { rank: 8, name: "Deepak Joshi", catches: 16, weight: "32.6 kg", points: 820 },
-          { rank: 9, name: "Kiran Naidu", catches: 15, weight: "31.0 kg", points: 770 },
-          { rank: 10, name: "Sanjay Murthy", catches: 14, weight: "29.5 kg", points: 720 },
-        ];
-        for (const entry of defaultLeaderboard) {
-            await addDoc(collection(db, "leaderboard"), { ...entry, createdAt: new Date() });
-        }
-        toast({ title: "Success", description: "Leaderboard seeded" });
-        fetchData("leaderboard");
+      const defaultLeaderboard = [
+        { rank: 1, name: "Rajesh Kumar", catches: 24, weight: "45.2 kg", points: 1250 },
+        { rank: 2, name: "Anil Sharma", catches: 22, weight: "42.8 kg", points: 1180 },
+        { rank: 3, name: "Vikram Patel", catches: 21, weight: "40.5 kg", points: 1120 },
+        { rank: 4, name: "Suresh Reddy", catches: 20, weight: "38.9 kg", points: 1050 },
+        { rank: 5, name: "Mahesh Rao", catches: 19, weight: "37.2 kg", points: 980 },
+        { rank: 6, name: "Prakash Singh", catches: 18, weight: "35.8 kg", points: 920 },
+        { rank: 7, name: "Ravi Verma", catches: 17, weight: "34.1 kg", points: 870 },
+        { rank: 8, name: "Deepak Joshi", catches: 16, weight: "32.6 kg", points: 820 },
+        { rank: 9, name: "Kiran Naidu", catches: 15, weight: "31.0 kg", points: 770 },
+        { rank: 10, name: "Sanjay Murthy", catches: 14, weight: "29.5 kg", points: 720 },
+      ];
+      for (const entry of defaultLeaderboard) {
+        await addDoc(collection(db, "leaderboard"), { ...entry, createdAt: new Date() });
+      }
+      toast({ title: "Success", description: "Leaderboard seeded" });
+      fetchData("leaderboard");
     } catch (error) {
-        console.error("Error seeding leaderboard:", error);
-        toast({ title: "Error", description: "Failed to seed leaderboard", variant: "destructive" });
+      console.error("Error seeding leaderboard:", error);
+      toast({ title: "Error", description: "Failed to seed leaderboard", variant: "destructive" });
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -758,7 +765,7 @@ const AdminDashboard = () => {
       if (formData.userId && formData.type?.toLowerCase().includes('membership') && formData.status === 'completed') {
         const userId = formData.userId.trim();
         const typeLower = formData.type.toLowerCase();
-        
+
         // Dynamic: Extract plan name from type (e.g. membership_gold -> gold)
         let planName = 'basic';
         if (typeLower.startsWith('membership_')) {
@@ -778,7 +785,7 @@ const AdminDashboard = () => {
             expiresAt: expiresAt
           }
         }, { merge: true });
-        
+
         toast({ title: "Success", description: `Payment recorded & ${planName} membership assigned` });
       } else {
         toast({ title: "Success", description: "Payment recorded successfully" });
@@ -790,6 +797,45 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error("Error recording payment:", error);
       toast({ title: "Error", description: "Failed to record payment", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+
+  const handleSaveNotification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      await addDoc(collection(db, "notifications"), {
+        title: formData.title,
+        message: formData.message,
+        type: formData.type || 'info', // info, urgent, success
+        createdAt: new Date()
+      });
+      toast({ title: "Success", description: "Notification sent successfully" });
+      setShowForm(false);
+      setFormData({});
+      fetchData("notifications");
+    } catch (error) {
+      console.error("Error sending notification:", error);
+      toast({ title: "Error", description: "Failed to send notification", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteNotification = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this notification?")) return;
+    setIsLoading(true);
+    try {
+      await deleteDoc(doc(db, "notifications", id));
+      toast({ title: "Success", description: "Notification deleted" });
+      fetchData("notifications");
+    } catch (error) {
+      console.error("Error deleting notification:", error);
+      toast({ title: "Error", description: "Failed to delete notification", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -883,7 +929,7 @@ const AdminDashboard = () => {
       await updateDoc(doc(db, "job_applications", viewApplication.id), {
         notes: applicationNote
       });
-      setApplications(prev => prev.map(app => 
+      setApplications(prev => prev.map(app =>
         app.id === viewApplication.id ? { ...app, notes: applicationNote } : app
       ));
       setViewApplication((prev: any) => ({ ...prev, notes: applicationNote }));
@@ -896,7 +942,7 @@ const AdminDashboard = () => {
 
   const handleDelete = async (collectionName: string, id: string) => {
     if (!window.confirm("Are you sure you want to delete this item?")) return;
-    
+
     try {
       await deleteDoc(doc(db, collectionName, id));
       toast({ title: "Deleted", description: "Item removed successfully" });
@@ -936,7 +982,7 @@ const AdminDashboard = () => {
         return { date, amount: dayTotal };
       });
     })();
-    
+
     // Calculate user growth data for the last 7 days
     const userGrowthData = (() => {
       const last7Days = [...Array(7)].map((_, i) => {
@@ -981,197 +1027,197 @@ const AdminDashboard = () => {
       <div className="space-y-8">
         {/* Key Metrics - Row 1 */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-           {/* Total Users */}
-           <div className="bg-card p-8 rounded-2xl border shadow-sm flex flex-col justify-between h-48 relative overflow-hidden group">
-              <div className="absolute right-0 top-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
-                <Users className="w-24 h-24 text-primary" />
-              </div>
-              <div>
-                <p className="text-lg font-medium text-muted-foreground">Total Users</p>
-                <h3 className="text-5xl font-bold mt-4 text-primary">{users.length}</h3>
-              </div>
-              <div className="flex items-center text-sm text-muted-foreground mt-4">
-                 <span className="text-green-500 flex items-center font-medium bg-green-500/10 px-2 py-1 rounded-full">
-                    Active
-                 </span>
-                 <span className="ml-2">community members</span>
-              </div>
-           </div>
+          {/* Total Users */}
+          <div className="bg-card p-8 rounded-2xl border shadow-sm flex flex-col justify-between h-48 relative overflow-hidden group">
+            <div className="absolute right-0 top-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
+              <Users className="w-24 h-24 text-primary" />
+            </div>
+            <div>
+              <p className="text-lg font-medium text-muted-foreground">Total Users</p>
+              <h3 className="text-5xl font-bold mt-4 text-primary">{users.length}</h3>
+            </div>
+            <div className="flex items-center text-sm text-muted-foreground mt-4">
+              <span className="text-green-500 flex items-center font-medium bg-green-500/10 px-2 py-1 rounded-full">
+                Active
+              </span>
+              <span className="ml-2">community members</span>
+            </div>
+          </div>
 
-           {/* Total Revenue */}
-           <div className="bg-card p-8 rounded-2xl border shadow-sm flex flex-col justify-between h-48 relative overflow-hidden group">
-              <div className="absolute right-0 top-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
-                <CreditCard className="w-24 h-24 text-green-500" />
-              </div>
-              <div>
-                <p className="text-lg font-medium text-muted-foreground">Total Revenue</p>
-                <h3 className="text-5xl font-bold mt-4 text-green-600">
-                  {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(sales.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0))}
-                </h3>
-              </div>
-              <div className="flex items-center text-sm text-muted-foreground mt-4">
-                 <span className="text-green-500 flex items-center font-medium bg-green-500/10 px-2 py-1 rounded-full">
-                    +{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
-                        sales.filter(s => {
-                            if (!s.date) return false;
-                            const sDate = s.date.toDate ? s.date.toDate() : new Date(s.date);
-                            return sDate.toDateString() === new Date().toDateString();
-                        }).reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
-                    )} today
-                 </span>
-                 <span className="ml-2">from {sales.length} transactions</span>
-              </div>
-           </div>
+          {/* Total Revenue */}
+          <div className="bg-card p-8 rounded-2xl border shadow-sm flex flex-col justify-between h-48 relative overflow-hidden group">
+            <div className="absolute right-0 top-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
+              <CreditCard className="w-24 h-24 text-green-500" />
+            </div>
+            <div>
+              <p className="text-lg font-medium text-muted-foreground">Total Revenue</p>
+              <h3 className="text-5xl font-bold mt-4 text-green-600">
+                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(sales.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0))}
+              </h3>
+            </div>
+            <div className="flex items-center text-sm text-muted-foreground mt-4">
+              <span className="text-green-500 flex items-center font-medium bg-green-500/10 px-2 py-1 rounded-full">
+                +{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
+                  sales.filter(s => {
+                    if (!s.date) return false;
+                    const sDate = s.date.toDate ? s.date.toDate() : new Date(s.date);
+                    return sDate.toDateString() === new Date().toDateString();
+                  }).reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
+                )} today
+              </span>
+              <span className="ml-2">from {sales.length} transactions</span>
+            </div>
+          </div>
 
-           {/* Active Tournaments */}
-           <div className="bg-card p-8 rounded-2xl border shadow-sm flex flex-col justify-between h-48 relative overflow-hidden group">
-              <div className="absolute right-0 top-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
-                <Trophy className="w-24 h-24 text-secondary" />
-              </div>
-              <div>
-                <p className="text-lg font-medium text-muted-foreground">Active Tournaments</p>
-                <h3 className="text-5xl font-bold mt-4 text-secondary">{tournaments.filter(t => t.status === 'upcoming' || t.status === 'open').length}</h3>
-              </div>
-              <div className="flex items-center text-sm text-muted-foreground mt-4">
-                 <span className="text-secondary flex items-center font-medium bg-secondary/10 px-2 py-1 rounded-full">
-                    {registrations.length}
-                 </span>
-                 <span className="ml-2">total registrations</span>
-              </div>
-           </div>
+          {/* Active Tournaments */}
+          <div className="bg-card p-8 rounded-2xl border shadow-sm flex flex-col justify-between h-48 relative overflow-hidden group">
+            <div className="absolute right-0 top-0 p-8 opacity-10 group-hover:scale-110 transition-transform">
+              <Trophy className="w-24 h-24 text-secondary" />
+            </div>
+            <div>
+              <p className="text-lg font-medium text-muted-foreground">Active Tournaments</p>
+              <h3 className="text-5xl font-bold mt-4 text-secondary">{tournaments.filter(t => t.status === 'upcoming' || t.status === 'open').length}</h3>
+            </div>
+            <div className="flex items-center text-sm text-muted-foreground mt-4">
+              <span className="text-secondary flex items-center font-medium bg-secondary/10 px-2 py-1 rounded-full">
+                {registrations.length}
+              </span>
+              <span className="ml-2">total registrations</span>
+            </div>
+          </div>
         </div>
 
         {/* Revenue Chart Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-8">
-              <div className="bg-card p-8 rounded-2xl border shadow-sm">
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h3 className="text-2xl font-bold">Revenue Analytics</h3>
-                        <p className="text-muted-foreground">Last 7 days performance</p>
-                    </div>
-                    <div className="p-3 bg-green-500/10 rounded-xl">
-                        <IndianRupee className="w-6 h-6 text-green-600" />
-                    </div>
+          <div className="lg:col-span-2 space-y-8">
+            <div className="bg-card p-8 rounded-2xl border shadow-sm">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-2xl font-bold">Revenue Analytics</h3>
+                  <p className="text-muted-foreground">Last 7 days performance</p>
                 </div>
-                
-                <ChartContainer config={revenueChartConfig} className="h-64 w-full">
-                  <AreaChart data={revenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-amount)" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="var(--color-amount)" stopOpacity={0.1} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="date" 
-                      tickLine={false} 
-                      axisLine={false} 
-                      tickMargin={8} 
-                      tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { weekday: 'short' })} 
-                    />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Area 
-                      type="monotone" 
-                      dataKey="amount" 
-                      stroke="var(--color-amount)" 
-                      fillOpacity={1} 
-                      fill="url(#fillRevenue)" 
-                    />
-                  </AreaChart>
-                </ChartContainer>
+                <div className="p-3 bg-green-500/10 rounded-xl">
+                  <IndianRupee className="w-6 h-6 text-green-600" />
+                </div>
               </div>
 
-              {/* User Growth Chart */}
-              <div className="bg-card p-8 rounded-2xl border shadow-sm">
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h3 className="text-2xl font-bold">User Growth</h3>
-                        <p className="text-muted-foreground">New members in last 7 days</p>
-                    </div>
-                    <div className="p-3 bg-blue-500/10 rounded-xl">
-                        <TrendingUp className="w-6 h-6 text-blue-600" />
-                    </div>
-                </div>
-                
-                <ChartContainer config={userChartConfig} className="h-64 w-full">
-                  <AreaChart data={userGrowthData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="fillUsers" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--color-count)" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="var(--color-count)" stopOpacity={0.1} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="date" 
-                      tickLine={false} 
-                      axisLine={false} 
-                      tickMargin={8} 
-                      tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { weekday: 'short' })} 
-                    />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Area 
-                      type="monotone" 
-                      dataKey="count" 
-                      stroke="var(--color-count)" 
-                      fillOpacity={1} 
-                      fill="url(#fillUsers)" 
-                    />
-                  </AreaChart>
-                </ChartContainer>
-              </div>
+              <ChartContainer config={revenueChartConfig} className="h-64 w-full">
+                <AreaChart data={revenueData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-amount)" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="var(--color-amount)" stopOpacity={0.1} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { weekday: 'short' })}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Area
+                    type="monotone"
+                    dataKey="amount"
+                    stroke="var(--color-amount)"
+                    fillOpacity={1}
+                    fill="url(#fillRevenue)"
+                  />
+                </AreaChart>
+              </ChartContainer>
             </div>
 
-            {/* Quick Stats Grid */}
-            <div className="grid grid-cols-1 gap-4">
-                <div className="bg-card p-6 rounded-xl border shadow-sm flex items-center justify-between">
-                    <div>
-                        <p className="text-sm font-medium text-muted-foreground">Membership Plans</p>
-                        <h4 className="text-2xl font-bold mt-1">{memberships.length}</h4>
-                    </div>
-                    <div className="p-3 bg-purple-500/10 rounded-xl text-purple-500">
-                        <Crown className="w-6 h-6" />
-                    </div>
+            {/* User Growth Chart */}
+            <div className="bg-card p-8 rounded-2xl border shadow-sm">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-2xl font-bold">User Growth</h3>
+                  <p className="text-muted-foreground">New members in last 7 days</p>
                 </div>
-                <div className="bg-card p-6 rounded-xl border shadow-sm flex items-center justify-between">
-                    <div>
-                        <p className="text-sm font-medium text-muted-foreground">Gallery Images</p>
-                        <h4 className="text-2xl font-bold mt-1">{gallery.length}</h4>
-                    </div>
-                    <div className="p-3 bg-accent/10 rounded-xl text-accent">
-                        <ImageIcon className="w-6 h-6" />
-                    </div>
+                <div className="p-3 bg-blue-500/10 rounded-xl">
+                  <TrendingUp className="w-6 h-6 text-blue-600" />
                 </div>
-                <div className="bg-card p-6 rounded-xl border shadow-sm flex items-center justify-between">
-                    <div>
-                        <p className="text-sm font-medium text-muted-foreground">Open Jobs</p>
-                        <h4 className="text-2xl font-bold mt-1">{jobs.length}</h4>
-                    </div>
-                    <div className="p-3 bg-blue-500/10 rounded-xl text-blue-500">
-                        <Briefcase className="w-6 h-6" />
-                    </div>
-                </div>
-                <div className="bg-card p-6 rounded-xl border shadow-sm flex items-center justify-between">
-                    <div>
-                        <p className="text-sm font-medium text-muted-foreground">Applications</p>
-                        <h4 className="text-2xl font-bold mt-1">{applications.length}</h4>
-                    </div>
-                    <div className="p-3 bg-orange-500/10 rounded-xl text-orange-500">
-                        <FileText className="w-6 h-6" />
-                    </div>
-                </div>
-                <div className="bg-card p-6 rounded-xl border shadow-sm flex items-center justify-between">
-                    <div>
-                        <p className="text-sm font-medium text-muted-foreground">Subscribers</p>
-                        <h4 className="text-2xl font-bold mt-1">{subscribers.length}</h4>
-                    </div>
-                    <div className="p-3 bg-pink-500/10 rounded-xl text-pink-500">
-                        <Mail className="w-6 h-6" />
-                    </div>
-                </div>
+              </div>
+
+              <ChartContainer config={userChartConfig} className="h-64 w-full">
+                <AreaChart data={userGrowthData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="fillUsers" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-count)" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="var(--color-count)" stopOpacity={0.1} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { weekday: 'short' })}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Area
+                    type="monotone"
+                    dataKey="count"
+                    stroke="var(--color-count)"
+                    fillOpacity={1}
+                    fill="url(#fillUsers)"
+                  />
+                </AreaChart>
+              </ChartContainer>
             </div>
+          </div>
+
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-1 gap-4">
+            <div className="bg-card p-6 rounded-xl border shadow-sm flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Membership Plans</p>
+                <h4 className="text-2xl font-bold mt-1">{memberships.length}</h4>
+              </div>
+              <div className="p-3 bg-purple-500/10 rounded-xl text-purple-500">
+                <Crown className="w-6 h-6" />
+              </div>
+            </div>
+            <div className="bg-card p-6 rounded-xl border shadow-sm flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Gallery Images</p>
+                <h4 className="text-2xl font-bold mt-1">{gallery.length}</h4>
+              </div>
+              <div className="p-3 bg-accent/10 rounded-xl text-accent">
+                <ImageIcon className="w-6 h-6" />
+              </div>
+            </div>
+            <div className="bg-card p-6 rounded-xl border shadow-sm flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Open Jobs</p>
+                <h4 className="text-2xl font-bold mt-1">{jobs.length}</h4>
+              </div>
+              <div className="p-3 bg-blue-500/10 rounded-xl text-blue-500">
+                <Briefcase className="w-6 h-6" />
+              </div>
+            </div>
+            <div className="bg-card p-6 rounded-xl border shadow-sm flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Applications</p>
+                <h4 className="text-2xl font-bold mt-1">{applications.length}</h4>
+              </div>
+              <div className="p-3 bg-orange-500/10 rounded-xl text-orange-500">
+                <FileText className="w-6 h-6" />
+              </div>
+            </div>
+            <div className="bg-card p-6 rounded-xl border shadow-sm flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Subscribers</p>
+                <h4 className="text-2xl font-bold mt-1">{subscribers.length}</h4>
+              </div>
+              <div className="p-3 bg-pink-500/10 rounded-xl text-pink-500">
+                <Mail className="w-6 h-6" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1201,38 +1247,38 @@ const AdminDashboard = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Tournament Name</Label>
-                <Input required value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} />
+                <Input required value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Date</Label>
-                <Input type="date" required value={formData.date || ''} onChange={e => setFormData({...formData, date: e.target.value})} />
+                <Input type="date" required value={formData.date || ''} onChange={e => setFormData({ ...formData, date: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Location</Label>
-                <Input required value={formData.location || ''} onChange={e => setFormData({...formData, location: e.target.value})} />
+                <Input required value={formData.location || ''} onChange={e => setFormData({ ...formData, location: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Entry Fee (₹)</Label>
-                <Input type="number" required value={formData.price || ''} onChange={e => setFormData({...formData, price: e.target.value})} />
+                <Input type="number" required value={formData.price || ''} onChange={e => setFormData({ ...formData, price: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Max Participants</Label>
-                <Input type="number" required value={formData.maxParticipants || ''} onChange={e => setFormData({...formData, maxParticipants: e.target.value})} />
+                <Input type="number" required value={formData.maxParticipants || ''} onChange={e => setFormData({ ...formData, maxParticipants: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Prize Pool</Label>
-                <Input placeholder="e.g. ₹50,000" value={formData.prize || ''} onChange={e => setFormData({...formData, prize: e.target.value})} />
+                <Input placeholder="e.g. ₹50,000" value={formData.prize || ''} onChange={e => setFormData({ ...formData, prize: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Image URL</Label>
-                <Input placeholder="https://..." value={formData.image || ''} onChange={e => setFormData({...formData, image: e.target.value})} />
+                <Input placeholder="https://..." value={formData.image || ''} onChange={e => setFormData({ ...formData, image: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
-                <select 
+                <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
                   value={formData.status || 'upcoming'}
-                  onChange={e => setFormData({...formData, status: e.target.value})}
+                  onChange={e => setFormData({ ...formData, status: e.target.value })}
                 >
                   <option value="upcoming">Upcoming</option>
                   <option value="open">Registration Open</option>
@@ -1254,28 +1300,27 @@ const AdminDashboard = () => {
           <div key={t.id} className="bg-card p-4 rounded-xl border flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="h-16 w-16 rounded-lg overflow-hidden bg-muted shrink-0">
-                <img 
-                  src={t.image || "https://images.unsplash.com/photo-1544551763-46a8723ba3f9?auto=format&fit=crop&q=80&w=1000"} 
-                  alt={t.name} 
+                <img
+                  src={t.image || "https://images.unsplash.com/photo-1544551763-46a8723ba3f9?auto=format&fit=crop&q=80&w=1000"}
+                  alt={t.name}
                   className="h-full w-full object-cover"
                 />
               </div>
               <div>
-              <h3 className="font-semibold text-lg">{t.name}</h3>
-              <div className="flex gap-4 text-sm text-muted-foreground mt-1">
-                <span className="flex items-center"><Calendar className="w-3 h-3 mr-1" /> {t.date}</span>
-                <span className="flex items-center"><MapPin className="w-3 h-3 mr-1" /> {t.location}</span>
-                <span className="flex items-center"><IndianRupee className="w-3 h-3 mr-1" /> {t.price}</span>
+                <h3 className="font-semibold text-lg">{t.name}</h3>
+                <div className="flex gap-4 text-sm text-muted-foreground mt-1">
+                  <span className="flex items-center"><Calendar className="w-3 h-3 mr-1" /> {t.date}</span>
+                  <span className="flex items-center"><MapPin className="w-3 h-3 mr-1" /> {t.location}</span>
+                  <span className="flex items-center"><IndianRupee className="w-3 h-3 mr-1" /> {t.price}</span>
+                </div>
               </div>
             </div>
-            </div>
             <div className="flex items-center gap-3">
-              <span className={`px-2 py-1 rounded-full text-xs ${
-                t.status === 'completed' ? 'bg-muted text-muted-foreground' : 
-                t.status === 'ongoing' ? 'bg-green-500/10 text-green-500' : 
-                t.status === 'open' ? 'bg-secondary/10 text-secondary' :
-                'bg-blue-500/10 text-blue-500'
-              }`}>
+              <span className={`px-2 py-1 rounded-full text-xs ${t.status === 'completed' ? 'bg-muted text-muted-foreground' :
+                t.status === 'ongoing' ? 'bg-green-500/10 text-green-500' :
+                  t.status === 'open' ? 'bg-secondary/10 text-secondary' :
+                    'bg-blue-500/10 text-blue-500'
+                }`}>
                 {t.status === 'open' ? 'REGISTRATION OPEN' : t.status?.toUpperCase() || 'UPCOMING'}
               </span>
               <Button variant="ghost" size="icon" onClick={() => { setFormData(t); setShowForm(true); }}>
@@ -1378,14 +1423,14 @@ const AdminDashboard = () => {
               <form onSubmit={handleUpdateUser} className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Display Name</Label>
-                  <Input value={formData.displayName || ''} onChange={e => setFormData({...formData, displayName: e.target.value})} />
+                  <Input value={formData.displayName || ''} onChange={e => setFormData({ ...formData, displayName: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <Label>Role</Label>
-                  <select 
+                  <select
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={formData.role || 'user'}
-                    onChange={e => setFormData({...formData, role: e.target.value})}
+                    onChange={e => setFormData({ ...formData, role: e.target.value })}
                   >
                     <option value="user">User</option>
                     <option value="admin">Admin</option>
@@ -1393,10 +1438,10 @@ const AdminDashboard = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>Membership Plan</Label>
-                  <select 
+                  <select
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={formData.membershipPlan || 'none'}
-                    onChange={e => setFormData({...formData, membershipPlan: e.target.value})}
+                    onChange={e => setFormData({ ...formData, membershipPlan: e.target.value })}
                   >
                     <option value="none">None</option>
                     {memberships.map(plan => (
@@ -1412,52 +1457,52 @@ const AdminDashboard = () => {
           )}
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-            <thead className="bg-muted/50 text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Email</th>
-                <th className="px-4 py-3">Role</th>
-                <th className="px-4 py-3">Membership</th>
-                <th className="px-4 py-3">Joined</th>
-                <th className="px-4 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map((u) => (
-                <tr key={u.id} className="border-t">
-                  <td className="px-4 py-3 font-medium">{u.displayName || 'N/A'}</td>
-                  <td className="px-4 py-3">{u.email}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded-full text-xs ${u.role === 'admin' ? 'bg-purple-500/10 text-purple-600' : 'bg-gray-100 text-gray-600'}`}>
-                      {u.role || 'user'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 capitalize">{u.membership?.plan || 'None'}</td>
-                  <td className="px-4 py-3">{u.createdAt?.toDate ? u.createdAt.toDate().toLocaleDateString() : 'N/A'}</td>
-                  <td className="px-4 py-3">
-                    <Button variant="ghost" size="icon" onClick={() => { 
-                      setFormData({
-                        id: u.id, 
-                        displayName: u.displayName, 
-                        role: u.role,
-                        membershipPlan: u.membership?.plan || 'none'
-                      }); 
-                      setShowForm(true); 
-                    }}>
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                  </td>
+              <thead className="bg-muted/50 text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Email</th>
+                  <th className="px-4 py-3">Role</th>
+                  <th className="px-4 py-3">Membership</th>
+                  <th className="px-4 py-3">Joined</th>
+                  <th className="px-4 py-3">Actions</th>
                 </tr>
-              ))}
-              {filteredUsers.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">No users found for this filter.</td></tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredUsers.map((u) => (
+                  <tr key={u.id} className="border-t">
+                    <td className="px-4 py-3 font-medium">{u.displayName || 'N/A'}</td>
+                    <td className="px-4 py-3">{u.email}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs ${u.role === 'admin' ? 'bg-purple-500/10 text-purple-600' : 'bg-gray-100 text-gray-600'}`}>
+                        {u.role || 'user'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 capitalize">{u.membership?.plan || 'None'}</td>
+                    <td className="px-4 py-3">{u.createdAt?.toDate ? u.createdAt.toDate().toLocaleDateString() : 'N/A'}</td>
+                    <td className="px-4 py-3">
+                      <Button variant="ghost" size="icon" onClick={() => {
+                        setFormData({
+                          id: u.id,
+                          displayName: u.displayName,
+                          role: u.role,
+                          membershipPlan: u.membership?.plan || 'none'
+                        });
+                        setShowForm(true);
+                      }}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+                {filteredUsers.length === 0 && (
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">No users found for this filter.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
   };
 
   const renderGallery = () => (
@@ -1483,18 +1528,18 @@ const AdminDashboard = () => {
           <form onSubmit={handleAddToGallery} className="space-y-4">
             <div className="space-y-2">
               <Label>Image URL</Label>
-              <Input required placeholder="https://..." value={formData.url || ''} onChange={e => setFormData({...formData, url: e.target.value})} />
+              <Input required placeholder="https://..." value={formData.url || ''} onChange={e => setFormData({ ...formData, url: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label>Caption / Title</Label>
-              <Input required placeholder="Big Catch at River..." value={formData.title || ''} onChange={e => setFormData({...formData, title: e.target.value})} />
+              <Input required placeholder="Big Catch at River..." value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label>Category</Label>
-              <select 
+              <select
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={formData.category || 'catches'}
-                onChange={e => setFormData({...formData, category: e.target.value})}
+                onChange={e => setFormData({ ...formData, category: e.target.value })}
               >
                 <option value="catches">Catches</option>
                 <option value="tournaments">Tournaments</option>
@@ -1548,19 +1593,19 @@ const AdminDashboard = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Amount (₹)</Label>
-                <Input type="number" required value={formData.amount || ''} onChange={e => setFormData({...formData, amount: e.target.value})} />
+                <Input type="number" required value={formData.amount || ''} onChange={e => setFormData({ ...formData, amount: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Type</Label>
-                <Input placeholder="e.g. membership_premium" value={formData.type || ''} onChange={e => setFormData({...formData, type: e.target.value})} />
+                <Input placeholder="e.g. membership_premium" value={formData.type || ''} onChange={e => setFormData({ ...formData, type: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>User ID (Optional)</Label>
-                <Input placeholder="User UID" value={formData.userId || ''} onChange={e => setFormData({...formData, userId: e.target.value})} />
+                <Input placeholder="User UID" value={formData.userId || ''} onChange={e => setFormData({ ...formData, userId: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Input value={formData.status || 'completed'} onChange={e => setFormData({...formData, status: e.target.value})} />
+                <Input value={formData.status || 'completed'} onChange={e => setFormData({ ...formData, status: e.target.value })} />
               </div>
             </div>
             <Button type="submit" disabled={isLoading}>
@@ -1631,18 +1676,18 @@ const AdminDashboard = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Plan Name</Label>
-                <Input required placeholder="e.g. Premium" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} />
+                <Input required placeholder="e.g. Premium" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Price (₹)</Label>
-                <Input type="number" required value={formData.price || ''} onChange={e => setFormData({...formData, price: e.target.value})} />
+                <Input type="number" required value={formData.price || ''} onChange={e => setFormData({ ...formData, price: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Interval</Label>
-                <select 
+                <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={formData.interval || 'year'}
-                  onChange={e => setFormData({...formData, interval: e.target.value})}
+                  onChange={e => setFormData({ ...formData, interval: e.target.value })}
                 >
                   <option value="month">Monthly</option>
                   <option value="year">Yearly</option>
@@ -1651,16 +1696,16 @@ const AdminDashboard = () => {
             </div>
             <div className="space-y-2">
               <Label>Description</Label>
-              <Input required placeholder="Short description of the plan" value={formData.description || ''} onChange={e => setFormData({...formData, description: e.target.value})} />
+              <Input required placeholder="Short description of the plan" value={formData.description || ''} onChange={e => setFormData({ ...formData, description: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label>Features (One per line)</Label>
-              <textarea 
+              <textarea
                 className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                required 
-                placeholder="Feature 1&#10;Feature 2" 
-                value={formData.features || ''} 
-                onChange={e => setFormData({...formData, features: e.target.value})} 
+                required
+                placeholder="Feature 1&#10;Feature 2"
+                value={formData.features || ''}
+                onChange={e => setFormData({ ...formData, features: e.target.value })}
               />
             </div>
             <Button type="submit" disabled={isLoading}>
@@ -1675,9 +1720,9 @@ const AdminDashboard = () => {
         {memberships.map((item) => (
           <div key={item.id} className="bg-card p-6 rounded-xl border shadow-sm relative">
             <div className="absolute top-4 right-4 flex gap-2">
-               <Button variant="ghost" size="icon" onClick={() => { setFormData({...item, features: item.features?.join('\n')}); setShowForm(true); }}>
+              <Button variant="ghost" size="icon" onClick={() => { setFormData({ ...item, features: item.features?.join('\n') }); setShowForm(true); }}>
                 <span className="sr-only">Edit</span>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-pencil"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-pencil"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path d="m15 5 4 4" /></svg>
               </Button>
               <Button variant="destructive" size="icon" onClick={() => handleDelete("membershipPlans", item.id)}>
                 <Trash2 className="w-4 h-4" />
@@ -1724,14 +1769,14 @@ const AdminDashboard = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Job Title</Label>
-                <Input required placeholder="e.g. Fishing Guide" value={formData.title || ''} onChange={e => setFormData({...formData, title: e.target.value})} />
+                <Input required placeholder="e.g. Fishing Guide" value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })} />
               </div>
               <div className="space-y-2">
                 <Label>Type</Label>
-                <select 
+                <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={formData.type || 'Full-time'}
-                  onChange={e => setFormData({...formData, type: e.target.value})}
+                  onChange={e => setFormData({ ...formData, type: e.target.value })}
                 >
                   <option value="Full-time">Full-time</option>
                   <option value="Part-time">Part-time</option>
@@ -1741,17 +1786,17 @@ const AdminDashboard = () => {
               </div>
               <div className="space-y-2">
                 <Label>Location</Label>
-                <Input required placeholder="e.g. Manvi, Karnataka" value={formData.location || ''} onChange={e => setFormData({...formData, location: e.target.value})} />
+                <Input required placeholder="e.g. Manvi, Karnataka" value={formData.location || ''} onChange={e => setFormData({ ...formData, location: e.target.value })} />
               </div>
             </div>
             <div className="space-y-2">
               <Label>Description</Label>
-              <textarea 
+              <textarea
                 className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                required 
-                placeholder="Job responsibilities and requirements..." 
-                value={formData.description || ''} 
-                onChange={e => setFormData({...formData, description: e.target.value})} 
+                required
+                placeholder="Job responsibilities and requirements..."
+                value={formData.description || ''}
+                onChange={e => setFormData({ ...formData, description: e.target.value })}
               />
             </div>
             <Button type="submit" disabled={isLoading}>
@@ -1877,7 +1922,7 @@ const AdminDashboard = () => {
                   <p className="font-medium">{viewApplication.appliedAt?.toDate ? viewApplication.appliedAt.toDate().toLocaleDateString() : 'N/A'}</p>
                 </div>
               </div>
-              
+
               <div>
                 <Label className="text-muted-foreground">Portfolio / LinkedIn</Label>
                 {viewApplication.portfolio ? (
@@ -1977,79 +2022,183 @@ const AdminDashboard = () => {
 
       {showForm && (
         <div className="bg-card p-6 rounded-xl border shadow-sm mb-6">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="font-semibold">{formData.id ? 'Edit' : 'New'} Entry</h3>
-                <Button variant="ghost" size="sm" onClick={() => setShowForm(false)}><X className="w-4 h-4" /></Button>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-semibold">{formData.id ? 'Edit' : 'New'} Entry</h3>
+            <Button variant="ghost" size="sm" onClick={() => setShowForm(false)}><X className="w-4 h-4" /></Button>
+          </div>
+          <form onSubmit={handleSaveLeaderboardEntry} className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Rank</Label>
+              <Input type="number" required value={formData.rank || ''} onChange={e => setFormData({ ...formData, rank: e.target.value })} />
             </div>
-            <form onSubmit={handleSaveLeaderboardEntry} className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                    <Label>Rank</Label>
-                    <Input type="number" required value={formData.rank || ''} onChange={e => setFormData({...formData, rank: e.target.value})} />
-                </div>
-                <div className="space-y-2">
-                    <Label>Name</Label>
-                    <Input required value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} />
-                </div>
-                <div className="space-y-2">
-                    <Label>Catches</Label>
-                    <Input type="number" required value={formData.catches || ''} onChange={e => setFormData({...formData, catches: e.target.value})} />
-                </div>
-                <div className="space-y-2">
-                    <Label>Weight (e.g. 45.2 kg)</Label>
-                    <Input required value={formData.weight || ''} onChange={e => setFormData({...formData, weight: e.target.value})} />
-                </div>
-                <div className="space-y-2">
-                    <Label>Points</Label>
-                    <Input type="number" required value={formData.points || ''} onChange={e => setFormData({...formData, points: e.target.value})} />
-                </div>
-                <div className="md:col-span-2">
-                    <Button type="submit" disabled={isLoading} className="w-full">
-                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                        Save Entry
-                    </Button>
-                </div>
-            </form>
+            <div className="space-y-2">
+              <Label>Name</Label>
+              <Input required value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Catches</Label>
+              <Input type="number" required value={formData.catches || ''} onChange={e => setFormData({ ...formData, catches: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Weight (e.g. 45.2 kg)</Label>
+              <Input required value={formData.weight || ''} onChange={e => setFormData({ ...formData, weight: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label>Points</Label>
+              <Input type="number" required value={formData.points || ''} onChange={e => setFormData({ ...formData, points: e.target.value })} />
+            </div>
+            <div className="md:col-span-2">
+              <Button type="submit" disabled={isLoading} className="w-full">
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                Save Entry
+              </Button>
+            </div>
+          </form>
         </div>
       )}
 
       <div className="bg-card rounded-xl border overflow-hidden">
         <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-                <thead className="bg-muted/50 text-muted-foreground">
-                    <tr>
-                        <th className="px-4 py-3">Rank</th>
-                        <th className="px-4 py-3">Name</th>
-                        <th className="px-4 py-3">Catches</th>
-                        <th className="px-4 py-3">Weight</th>
-                        <th className="px-4 py-3">Points</th>
-                        <th className="px-4 py-3">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {leaderboard.map((entry) => (
-                        <tr key={entry.id} className="border-t">
-                            <td className="px-4 py-3 font-bold">#{entry.rank}</td>
-                            <td className="px-4 py-3">{entry.name}</td>
-                            <td className="px-4 py-3">{entry.catches}</td>
-                            <td className="px-4 py-3">{entry.weight}</td>
-                            <td className="px-4 py-3 font-semibold text-primary">{entry.points}</td>
-                            <td className="px-4 py-3">
-                                <div className="flex gap-2">
-                                    <Button variant="ghost" size="icon" onClick={() => { setFormData(entry); setShowForm(true); }}>
-                                        <Pencil className="w-4 h-4" />
-                                    </Button>
-                                    <Button variant="destructive" size="icon" onClick={() => handleDelete("leaderboard", entry.id)}>
-                                        <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                </div>
-                            </td>
-                        </tr>
-                    ))}
-                    {leaderboard.length === 0 && (
-                        <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No leaderboard entries found.</td></tr>
-                    )}
-                </tbody>
-            </table>
+          <table className="w-full text-sm text-left">
+            <thead className="bg-muted/50 text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3">Rank</th>
+                <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">Catches</th>
+                <th className="px-4 py-3">Weight</th>
+                <th className="px-4 py-3">Points</th>
+                <th className="px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leaderboard.map((entry) => (
+                <tr key={entry.id} className="border-t">
+                  <td className="px-4 py-3 font-bold">#{entry.rank}</td>
+                  <td className="px-4 py-3">{entry.name}</td>
+                  <td className="px-4 py-3">{entry.catches}</td>
+                  <td className="px-4 py-3">{entry.weight}</td>
+                  <td className="px-4 py-3 font-semibold text-primary">{entry.points}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="icon" onClick={() => { setFormData(entry); setShowForm(true); }}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button variant="destructive" size="icon" onClick={() => handleDelete("leaderboard", entry.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {leaderboard.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No leaderboard entries found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+
+
+  const renderNotifications = () => (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Manage Notifications</h2>
+        <Button onClick={() => { setShowForm(true); setFormData({}); }}>
+          <Plus className="w-4 h-4 mr-2" /> Send Notification
+        </Button>
+      </div>
+
+      {/* Form */}
+      {showForm && (
+        <div className="bg-card p-6 rounded-xl border shadow-sm mb-6 animate-in fade-in slide-in-from-top-4">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-semibold">Compose Notification</h3>
+            <Button variant="ghost" size="sm" onClick={() => setShowForm(false)}><X className="w-4 h-4" /></Button>
+          </div>
+          <form onSubmit={handleSaveNotification} className="space-y-4">
+            <div className="grid gap-4">
+              <div className="space-y-2">
+                <Label>Title</Label>
+                <Input required placeholder="Notification Title" value={formData.title || ''} onChange={e => setFormData({ ...formData, title: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Message</Label>
+                <Input required placeholder="Notification body content..." value={formData.message || ''} onChange={e => setFormData({ ...formData, message: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={formData.type || 'info'}
+                  onChange={e => setFormData({ ...formData, type: e.target.value })}
+                >
+                  <option value="info">Info (Blue)</option>
+                  <option value="urgent">Urgent (Red)</option>
+                  <option value="success">Success (Green)</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Target Audience</Label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  disabled
+                >
+                  <option value="all">All Users</option>
+                </select>
+                <p className="text-xs text-muted-foreground">Currently broadcasts to all registered users.</p>
+              </div>
+            </div>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+              Send Broadcast
+            </Button>
+          </form>
+        </div>
+      )}
+
+      {/* List */}
+      <div className="bg-card rounded-xl border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-muted/50 text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3">Title</th>
+                <th className="px-4 py-3">Message</th>
+                <th className="px-4 py-3">Type</th>
+                <th className="px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {notifications.map((n) => (
+                <tr key={n.id} className="border-t">
+                  <td className="px-4 py-3 w-32">{n.createdAt?.toDate ? n.createdAt.toDate().toLocaleDateString() : 'N/A'}</td>
+                  <td className="px-4 py-3 font-medium w-48">{n.title}</td>
+                  <td className="px-4 py-3 text-muted-foreground max-w-md truncate" title={n.message}>{n.message}</td>
+                  <td className="px-4 py-3 w-24">
+                    <span className={`px-2 py-1 rounded-full text-xs ${n.type === 'urgent' ? 'bg-red-100 text-red-600' :
+                      n.type === 'success' ? 'bg-green-100 text-green-600' :
+                        'bg-blue-100 text-blue-600'
+                      }`}>
+                      {n.type?.toUpperCase() || 'INFO'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 w-20">
+                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeleteNotification(n.id)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {notifications.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">No notifications sent yet.</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -2068,53 +2217,53 @@ const AdminDashboard = () => {
         <form onSubmit={handleSaveSettings} className="space-y-4">
           <div className="space-y-2">
             <Label>About Description</Label>
-            <textarea 
+            <textarea
               className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={formData.description || ''} 
-              onChange={e => setFormData({...formData, description: e.target.value})} 
+              value={formData.description || ''}
+              onChange={e => setFormData({ ...formData, description: e.target.value })}
             />
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Address</Label>
-              <Input value={formData.address || ''} onChange={e => setFormData({...formData, address: e.target.value})} />
+              <Input value={formData.address || ''} onChange={e => setFormData({ ...formData, address: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label>Phone</Label>
-              <Input value={formData.phone || ''} onChange={e => setFormData({...formData, phone: e.target.value})} />
+              <Input value={formData.phone || ''} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label>Email</Label>
-              <Input value={formData.email || ''} onChange={e => setFormData({...formData, email: e.target.value})} />
+              <Input value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Facebook URL</Label>
-              <Input value={formData.facebook || ''} onChange={e => setFormData({...formData, facebook: e.target.value})} />
+              <Input value={formData.facebook || ''} onChange={e => setFormData({ ...formData, facebook: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label>Instagram URL</Label>
-              <Input value={formData.instagram || ''} onChange={e => setFormData({...formData, instagram: e.target.value})} />
+              <Input value={formData.instagram || ''} onChange={e => setFormData({ ...formData, instagram: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label>Twitter URL</Label>
-              <Input value={formData.twitter || ''} onChange={e => setFormData({...formData, twitter: e.target.value})} />
+              <Input value={formData.twitter || ''} onChange={e => setFormData({ ...formData, twitter: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label>YouTube URL</Label>
-              <Input value={formData.youtube || ''} onChange={e => setFormData({...formData, youtube: e.target.value})} />
+              <Input value={formData.youtube || ''} onChange={e => setFormData({ ...formData, youtube: e.target.value })} />
             </div>
           </div>
 
           <div className="space-y-2">
             <Label>Quick Links (JSON)</Label>
-            <textarea 
+            <textarea
               className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
-              value={formData.quickLinks || ''} 
-              onChange={e => setFormData({...formData, quickLinks: e.target.value})} 
+              value={formData.quickLinks || ''}
+              onChange={e => setFormData({ ...formData, quickLinks: e.target.value })}
               placeholder='[{"name": "Home", "href": "/"}]'
             />
           </div>
@@ -2169,10 +2318,13 @@ const AdminDashboard = () => {
           <Button variant={activeTab === "leaderboard" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("leaderboard")}>
             <Trophy className="w-4 h-4 mr-2" /> Leaderboard
           </Button>
+          <Button variant={activeTab === "notifications" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("notifications")}>
+            <Users className="w-4 h-4 mr-2" /> Notifications
+          </Button>
           <Button variant={activeTab === "settings" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("settings")}>
             <Settings className="w-4 h-4 mr-2" /> Settings
           </Button>
-          
+
           <div className="pt-8 mt-8 border-t">
             <Button variant="outline" className="w-full justify-start text-muted-foreground" onClick={() => navigate("/dashboard")}>
               ← Back to App
@@ -2195,6 +2347,7 @@ const AdminDashboard = () => {
           {activeTab === "applications" && renderApplications()}
           {activeTab === "newsletter" && renderNewsletter()}
           {activeTab === "leaderboard" && renderLeaderboard()}
+          {activeTab === "notifications" && renderNotifications()}
           {activeTab === "settings" && renderSettings()}
         </div>
       </main>

@@ -1,7 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Bell } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { getFirestore, collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import logo from "@/assets/manvi2.png";
 import GoogleTranslate from "../GoogleTranslate";
@@ -10,14 +17,50 @@ const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const db = getFirestore();
+
+  useEffect(() => {
+    if (user) {
+      // Listen for notifications
+      const q = query(collection(db, "notifications"), orderBy("createdAt", "desc"), limit(10));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setNotifications(notifs);
+
+        // Calculate unread (simple version: checks local storage for last read timestamp)
+        const lastRead = localStorage.getItem("lastReadNotificationTime");
+        const lastReadTime = lastRead ? new Date(lastRead).getTime() : 0;
+
+        const count = notifs.filter((n: any) => {
+          const notifTime = n.createdAt?.toDate ? n.createdAt.toDate().getTime() : new Date(n.createdAt).getTime();
+          return notifTime > lastReadTime;
+        }).length;
+
+        setUnreadCount(count);
+      });
+      return () => unsubscribe();
+    }
+  }, [user]);
+
+  const handleNotificationClick = () => {
+    setIsNotificationsOpen(!isNotificationsOpen);
+    if (!isNotificationsOpen && notifications.length > 0) {
+      // Mark as read by updating local timestamp to now
+      localStorage.setItem("lastReadNotificationTime", new Date().toISOString());
+      setUnreadCount(0);
+    }
+  };
 
   const navLinks = [
-    { name: "About", href: "/#about" },
+    { name: "About", href: "/about-us" },
     { name: "Tournaments", href: "/tournaments" },
     { name: "Gallery", href: "/gallery" },
     { name: "Membership", href: "/#membership" },
     { name: "Careers", href: "/careers" },
-   
+
   ];
 
   const handleLogout = async () => {
@@ -34,7 +77,7 @@ const Header = () => {
             <img src={logo} alt="Manvi Fishing Club" className="w-20 h-20 md:w-20 md:h-20 object-contain" />
             <div className="flex flex-col">
               <span className="font-display text-lg md:text-xl font-bold text-primary">
-                Manvi 
+                Manvi
               </span>
               <span className="text-xs text-primary/70 -mt-1">
                 Fishing Club
@@ -68,6 +111,53 @@ const Header = () => {
           {/* CTA Buttons */}
           <div className="hidden md:flex items-center gap-3">
             <GoogleTranslate id="google_translate_element_desktop" />
+
+            {user && (
+              <Popover open={isNotificationsOpen} onOpenChange={setIsNotificationsOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" className="relative mr-2" onClick={handleNotificationClick}>
+                    <Bell className="w-5 h-5 text-primary" />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-0" align="end">
+                  <div className="p-4 border-b border-border bg-muted/30">
+                    <h4 className="font-semibold text-sm">Notifications</h4>
+                  </div>
+                  <ScrollArea className="h-[300px]">
+                    {notifications.length > 0 ? (
+                      <div className="flex flex-col">
+                        {notifications.map((notif: any) => (
+                          <div key={notif.id} className="p-4 border-b border-border hover:bg-muted/50 transition-colors">
+                            <div className="flex justify-between items-start mb-1">
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${notif.type === 'urgent' ? 'bg-red-100 text-red-600' :
+                                notif.type === 'success' ? 'bg-green-100 text-green-600' :
+                                  'bg-blue-100 text-blue-600'
+                                }`}>
+                                {notif.type?.toUpperCase() || 'INFO'}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {notif.createdAt?.toDate ? notif.createdAt.toDate().toLocaleDateString() : 'Just now'}
+                              </span>
+                            </div>
+                            <h5 className="font-medium text-sm mb-1">{notif.title}</h5>
+                            <p className="text-xs text-muted-foreground leading-relaxed">{notif.message}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-[200px] text-muted-foreground">
+                        <Bell className="w-8 h-8 mb-2 opacity-20" />
+                        <p className="text-sm">No notifications yet</p>
+                      </div>
+                    )}
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
+            )}
+
             {user ? (
               <>
                 <Link to="/dashboard">
@@ -135,6 +225,20 @@ const Header = () => {
               <div className="flex flex-col gap-2 pt-4 border-t border-primary/10">
                 {user ? (
                   <>
+                    <div className="flex items-center justify-between py-2 px-1">
+                      <span className="text-sm font-medium">Notifications</span>
+                      <div className="relative" onClick={() => navigate("/dashboard")}>
+                        {/* Mobile just goes to dashboard or shows count */}
+                        <div className="flex items-center gap-2">
+                          <Bell className="w-5 h-5 text-primary" />
+                          {unreadCount > 0 && (
+                            <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                              {unreadCount} new
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                     <Link to="/dashboard" onClick={() => setIsMenuOpen(false)}>
                       <Button variant="outline" className="w-full border-primary text-primary hover:bg-primary hover:text-white">
                         Dashboard

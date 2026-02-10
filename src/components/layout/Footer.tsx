@@ -23,7 +23,7 @@ const Footer = () => {
   }, []);
 
   const quickLinks = data?.quickLinks || [
-    { name: "About Us", href: "#about" },
+    { name: "About Us", href: "/about-us" },
     { name: "Tournaments", href: "#tournaments" },
     { name: "Membership", href: "#membership" },
     { name: "Gallery", href: "/gallery" },

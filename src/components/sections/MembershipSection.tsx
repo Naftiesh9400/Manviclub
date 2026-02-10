@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Crown, Star, Zap, CreditCard, CheckCircle2, Mail, Sparkles } from "lucide-react";
-import { getFirestore, collection, addDoc, getDocs, query, orderBy } from "firebase/firestore";
+import { getFirestore, collection, addDoc, getDocs, query, orderBy, onSnapshot } from "firebase/firestore";
 
 declare global {
   interface Window {
@@ -96,42 +96,56 @@ const MembershipSection = () => {
   ];
 
   useEffect(() => {
-    const fetchPlans = async () => {
+    const fetchPlans = () => {
       try {
         const db = getFirestore();
         const q = query(collection(db, "membershipPlans"), orderBy("price", "asc"));
-        const snapshot = await getDocs(q);
-        
-        if (!snapshot.empty) {
-          const fetchedPlans = snapshot.docs.map(doc => {
-            const data = doc.data();
-            // Determine icon and style based on plan name or price
-            let Icon = Zap;
-            if (data.name.toLowerCase().includes('premium')) Icon = Star;
-            if (data.name.toLowerCase().includes('elite')) Icon = Crown;
 
-            return {
-              name: data.name,
-              planId: data.planId,
-              icon: Icon,
-              price: `₹${data.price.toLocaleString()}`,
-              priceValue: data.price,
-              period: `per ${data.interval}`,
-              description: data.description,
-              features: data.features,
-              popular: data.name.toLowerCase().includes('premium'),
-              buttonVariant: data.name.toLowerCase().includes('elite') ? "accent" : data.name.toLowerCase().includes('premium') ? "hero" : "outline"
-            };
-          });
-          setPlans(fetchedPlans);
-        } else {
+        // Real-time listener for plan updates
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          if (!snapshot.empty) {
+            const fetchedPlans = snapshot.docs.map(doc => {
+              const data = doc.data();
+              // Determine icon and style based on plan name or price
+              let Icon = Zap;
+              if (data.name.toLowerCase().includes('premium')) Icon = Star;
+              if (data.name.toLowerCase().includes('elite')) Icon = Crown;
+
+              return {
+                name: data.name,
+                planId: data.planId,
+                icon: Icon,
+                price: `₹${data.price.toLocaleString()}`,
+                priceValue: data.price,
+                period: `per ${data.interval}`,
+                description: data.description,
+                features: data.features,
+                popular: data.name.toLowerCase().includes('premium'),
+                buttonVariant: data.name.toLowerCase().includes('elite') ? "accent" : data.name.toLowerCase().includes('premium') ? "hero" : "outline"
+              };
+            });
+            setPlans(fetchedPlans);
+          } else {
+            // Fallback to default plans if Firestore is empty
+            setPlans(defaultPlans);
+          }
+        }, (error) => {
+          console.error("Error fetching plans:", error);
           setPlans(defaultPlans);
-        }
+        });
+
+        // Cleanup listener on unmount
+        return unsubscribe;
       } catch (e) {
+        console.error("Error setting up plans listener:", e);
         setPlans(defaultPlans);
       }
     };
-    fetchPlans();
+
+    const unsubscribe = fetchPlans();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const handleSelectPlan = (plan: any) => {
@@ -152,7 +166,7 @@ const MembershipSection = () => {
 
   const handlePayment = async () => {
     if (!selectedPlan) return;
-    
+
     const db = getFirestore();
     setIsProcessing(true);
 
@@ -163,7 +177,7 @@ const MembershipSection = () => {
       script.src = "https://checkout.razorpay.com/v1/checkout.js";
       script.async = true;
       document.body.appendChild(script);
-      
+
       await new Promise((resolve) => {
         script.onload = resolve;
       });
@@ -179,7 +193,7 @@ const MembershipSection = () => {
       handler: async function (response: any) {
         try {
           console.log("Payment successful:", response);
-          
+
           // Record transaction in 'payments' collection so it shows in Admin Dashboard
           await addDoc(collection(db, "payments"), {
             userId: user?.uid,
@@ -194,7 +208,7 @@ const MembershipSection = () => {
           });
 
           await setMembershipPlan(selectedPlan.planId);
-          
+
           setIsSuccess(true);
           toast({
             title: "Payment Successful! 🎉",
@@ -244,7 +258,7 @@ const MembershipSection = () => {
             <span className="text-secondary">Membership</span>
           </h2>
           <p className="text-lg text-muted-foreground leading-relaxed">
-            Unlock exclusive benefits, connect with fellow anglers, and take your 
+            Unlock exclusive benefits, connect with fellow anglers, and take your
             fishing journey to the next level with our membership plans.
           </p>
         </div>
@@ -254,11 +268,10 @@ const MembershipSection = () => {
           {plans.map((plan, index) => (
             <div
               key={index}
-              className={`relative card-premium p-8 ${
-                plan.popular
+              className={`relative card-premium p-8 ${plan.popular
                   ? "border-2 border-secondary ring-4 ring-secondary/20 scale-105 z-10"
                   : ""
-              }`}
+                }`}
             >
               {/* Popular Badge */}
               {plan.popular && (
@@ -270,12 +283,10 @@ const MembershipSection = () => {
               )}
 
               {/* Icon */}
-              <div className={`w-14 h-14 rounded-xl mb-6 flex items-center justify-center ${
-                plan.popular ? "bg-gradient-ocean" : "bg-muted"
-              }`}>
-                <plan.icon className={`w-7 h-7 ${
-                  plan.popular ? "text-primary-foreground" : "text-secondary"
-                }`} />
+              <div className={`w-14 h-14 rounded-xl mb-6 flex items-center justify-center ${plan.popular ? "bg-gradient-ocean" : "bg-muted"
+                }`}>
+                <plan.icon className={`w-7 h-7 ${plan.popular ? "text-primary-foreground" : "text-secondary"
+                  }`} />
               </div>
 
               {/* Plan Name */}
@@ -307,9 +318,9 @@ const MembershipSection = () => {
               </ul>
 
               {/* Button */}
-              <Button 
-                variant={plan.buttonVariant} 
-                className="w-full" 
+              <Button
+                variant={plan.buttonVariant}
+                className="w-full"
                 size="lg"
                 onClick={() => handleSelectPlan(plan)}
                 disabled={membership?.plan === plan.planId}
@@ -380,9 +391,9 @@ const MembershipSection = () => {
                   </p>
                 </div>
 
-                <Button 
-                  variant="hero" 
-                  className="w-full" 
+                <Button
+                  variant="hero"
+                  className="w-full"
                   size="lg"
                   onClick={handlePayment}
                   disabled={isProcessing}

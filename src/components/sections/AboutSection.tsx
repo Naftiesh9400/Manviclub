@@ -1,4 +1,6 @@
-import { Anchor, Fish, Heart, MapPin, Shield, Users } from "lucide-react";
+import { Anchor, Fish, Heart, MapPin, Shield, Users, ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 const AboutSection = () => {
   const features = [
@@ -38,10 +40,17 @@ const AboutSection = () => {
             <span className="text-secondary">Fishing Club</span>
           </h2>
           <p className="text-lg text-muted-foreground leading-relaxed">
-            Founded in the heart of Karnataka, Manvi Fishing Club brings together passionate 
-            anglers who believe in the joy of fishing, the thrill of the catch, and the 
+            Founded in the heart of Karnataka under the leadership of Executive Director Isha Sharma, Manvi Fishing Club brings together passionate
+            anglers who believe in the joy of fishing, the thrill of the catch, and the
             importance of preserving our natural waters for generations to come.
           </p>
+          <div className="mt-8">
+            <Link to="/about-us">
+              <Button variant="outline" className="group">
+                Read More <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Features Grid */}
@@ -71,8 +80,8 @@ const AboutSection = () => {
             Our Mission
           </h3>
           <p className="text-primary-foreground/80 text-lg max-w-3xl mx-auto leading-relaxed">
-            "To foster a thriving community of anglers who embrace the art of fishing 
-            with respect for nature, share knowledge across generations, and create 
+            "To foster a thriving community of anglers who embrace the art of fishing
+            with respect for nature, share knowledge across generations, and create
             unforgettable memories on the water."
           </p>
         </div>
