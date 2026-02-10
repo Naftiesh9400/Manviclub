@@ -30,7 +30,9 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/tournaments" element={<Tournaments />} />
-            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/tournaments" element={<Tournaments />} />
+            {/* <Route path="/admin" element={<AdminDashboard />} />  -- Removed per user request */}
+            <Route path="/admin/ems" element={<AdminDashboard defaultTab="ems" />} />
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/careers" element={<Careers />} />
             <Route path="/openings" element={<Openings />} />

@@ -56,15 +56,15 @@ import {
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
-type Tab = "overview" | "tournaments" | "registrations" | "users" | "gallery" | "sales" | "memberships" | "jobs" | "applications" | "newsletter" | "leaderboard" | "notifications" | "settings";
+type Tab = "overview" | "tournaments" | "registrations" | "users" | "gallery" | "sales" | "memberships" | "jobs" | "applications" | "newsletter" | "leaderboard" | "notifications" | "ems" | "settings";
 
-const AdminDashboard = () => {
+const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) => {
   const { user, isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const db = getFirestore();
 
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [activeTab, setActiveTab] = useState<Tab>(defaultTab as Tab);
   const [isLoading, setIsLoading] = useState(false);
   const [userFilter, setUserFilter] = useState<"all" | "google" | "email" | "tournament">("all");
 
@@ -80,6 +80,7 @@ const AdminDashboard = () => {
   const [subscribers, setSubscribers] = useState<any[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
 
   // Form States
   const [showForm, setShowForm] = useState(false);
@@ -174,6 +175,12 @@ const AdminDashboard = () => {
         const q = query(collection(db, "leaderboard"), orderBy("rank", "asc"));
         const snapshot = await getDocs(q);
         setLeaderboard(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+
+      if (tab === "overview" || tab === "ems") {
+        const q = query(collection(db, "team_members"), orderBy("createdAt", "desc"));
+        const snapshot = await getDocs(q);
+        setTeamMembers(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       }
 
       if (tab === "overview" || tab === "notifications") {
@@ -836,6 +843,53 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error("Error deleting notification:", error);
       toast({ title: "Error", description: "Failed to delete notification", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveTeamMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      const data = {
+        name: formData.name,
+        role: formData.role,
+        bio: formData.bio,
+        bioHindi: formData.bioHindi,
+        shortBio: formData.shortBio,
+        imageUrl: formData.imageUrl || "", // Optional: specific image URL
+        createdAt: new Date()
+      };
+
+      if (formData.id) {
+        await updateDoc(doc(db, "team_members", formData.id), data);
+        toast({ title: "Team member updated" });
+      } else {
+        await addDoc(collection(db, "team_members"), data);
+        toast({ title: "Team member added" });
+      }
+      setShowForm(false);
+      setFormData({});
+      fetchData("ems");
+    } catch (error) {
+      console.error("Error saving team member:", error);
+      toast({ title: "Error saving team member", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteTeamMember = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this team member?")) return;
+    setIsLoading(true);
+    try {
+      await deleteDoc(doc(db, "team_members", id));
+      toast({ title: "Team member deleted" });
+      fetchData("ems");
+    } catch (error) {
+      console.error("Error deleting team member:", error);
+      toast({ title: "Error deleting team member", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -2102,6 +2156,111 @@ const AdminDashboard = () => {
 
 
 
+  const renderEMS = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Team Management (EMS)</h2>
+        <Button onClick={() => { setShowForm(true); setFormData({}); }}>
+          <Plus className="w-4 h-4 mr-2" /> Add Team Member
+        </Button>
+      </div>
+
+      {showForm && (
+        <div className="bg-card p-6 rounded-xl border shadow-sm mb-6 animate-in fade-in slide-in-from-top-4">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-semibold">{formData.id ? "Edit Member" : "Add New Member"}</h3>
+            <Button variant="ghost" size="sm" onClick={() => setShowForm(false)}><X className="w-4 h-4" /></Button>
+          </div>
+          <form onSubmit={handleSaveTeamMember} className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Name</Label>
+                <Input required placeholder="Full Name" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Input required placeholder="e.g. Executive Director" value={formData.role || ''} onChange={e => setFormData({ ...formData, role: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Short Bio</Label>
+              <Input required placeholder="Brief description..." value={formData.shortBio || ''} onChange={e => setFormData({ ...formData, shortBio: e.target.value })} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Bio (English)</Label>
+              <textarea
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                required
+                placeholder="Full biography in English..."
+                value={formData.bio || ''}
+                onChange={e => setFormData({ ...formData, bio: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Bio (Hindi)</Label>
+              <textarea
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                placeholder="Biography in Hindi..."
+                value={formData.bioHindi || ''}
+                onChange={e => setFormData({ ...formData, bioHindi: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Image URL (Optional)</Label>
+              <Input placeholder="https://..." value={formData.imageUrl || ''} onChange={e => setFormData({ ...formData, imageUrl: e.target.value })} />
+            </div>
+
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+              Save Team Member
+            </Button>
+          </form>
+        </div>
+      )}
+
+      <div className="bg-card rounded-xl border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-muted/50 text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">Role</th>
+                <th className="px-4 py-3">Short Bio</th>
+                <th className="px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {teamMembers.map((member) => (
+                <tr key={member.id} className="border-t">
+                  <td className="px-4 py-3 font-medium">{member.name}</td>
+                  <td className="px-4 py-3">{member.role}</td>
+                  <td className="px-4 py-3 text-muted-foreground max-w-xs truncate">{member.shortBio}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="icon" onClick={() => { setFormData(member); setShowForm(true); }}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeleteTeamMember(member.id)}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {teamMembers.length === 0 && (
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">No team members found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderNotifications = () => (
     <div className="space-y-6">
       {/* Header */}
@@ -2321,6 +2480,9 @@ const AdminDashboard = () => {
           <Button variant={activeTab === "notifications" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("notifications")}>
             <Users className="w-4 h-4 mr-2" /> Notifications
           </Button>
+          <Button variant={activeTab === "ems" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("ems")}>
+            <Users className="w-4 h-4 mr-2" /> Team Management (EMS)
+          </Button>
           <Button variant={activeTab === "settings" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("settings")}>
             <Settings className="w-4 h-4 mr-2" /> Settings
           </Button>
@@ -2348,6 +2510,7 @@ const AdminDashboard = () => {
           {activeTab === "newsletter" && renderNewsletter()}
           {activeTab === "leaderboard" && renderLeaderboard()}
           {activeTab === "notifications" && renderNotifications()}
+          {activeTab === "ems" && renderEMS()}
           {activeTab === "settings" && renderSettings()}
         </div>
       </main>
