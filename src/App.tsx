@@ -11,6 +11,8 @@ import Dashboard from "./pages/Dashboard";
 import Tournaments from "./pages/Tournaments";
 import AdminDashboard from "./pages/AdminDashboard";
 import Gallery from "./pages/Gallery";
+import Careers from "./pages/Careers";
+import Openings from "./pages/Openings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +32,8 @@ const App = () => (
             <Route path="/tournaments" element={<Tournaments />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/gallery" element={<Gallery />} />
+            <Route path="/careers" element={<Careers />} />
+            <Route path="/openings" element={<Openings />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
