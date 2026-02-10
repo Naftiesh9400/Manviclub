@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Trophy, Users } from "lucide-react";
+import { Trophy, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import heroImage from "@/assets/hero-fishing.jpg";
 
@@ -77,18 +77,18 @@ const HeroSection = () => {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 animate-fade-in" style={{ animationDelay: "0.3s" }}>
-            <Button 
-              variant="aqua" 
-              size="xl" 
+            <Button
+              variant="aqua"
+              size="xl"
               className="w-full sm:w-auto"
               onClick={scrollToMembership}
             >
               <Users className="w-5 h-5" />
               Join the Club
             </Button>
-            <Button 
-              variant="heroOutline" 
-              size="xl" 
+            <Button
+              variant="heroOutline"
+              size="xl"
               className="w-full sm:w-auto"
               onClick={() => navigate("/tournaments")}
             >
@@ -96,32 +96,8 @@ const HeroSection = () => {
               Register for Tournament
             </Button>
           </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 md:gap-8 max-w-lg mx-auto animate-fade-in" style={{ animationDelay: "0.4s" }}>
-            {[
-              { number: "500+", label: "Members" },
-              { number: "25+", label: "Tournaments" },
-              { number: "15+", label: "Locations" },
-            ].map((stat, index) => (
-              <div key={index} className="text-center">
-                <div className="font-display text-2xl md:text-3xl font-bold text-secondary">
-                  {stat.number}
-                </div>
-                <div className="text-sm text-primary-foreground/70">{stat.label}</div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
-
-      {/* Scroll Indicator */}
-      <a
-        href="#about"
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 text-primary-foreground/60 hover:text-primary-foreground transition-colors animate-float"
-      >
-        <ChevronDown className="w-8 h-8" />
-      </a>
     </section>
   );
 };

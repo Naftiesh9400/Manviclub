@@ -8,7 +8,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { getFirestore, collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
+import { getFirestore, collection, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import logo from "@/assets/manvi2.png";
 import GoogleTranslate from "../GoogleTranslate";
@@ -24,21 +24,19 @@ const Header = () => {
 
   useEffect(() => {
     if (user) {
-      // Listen for notifications
-      const q = query(collection(db, "notifications"), orderBy("createdAt", "desc"), limit(10));
+      // Listen for user-specific notifications
+      const q = query(
+        collection(db, "notifications"),
+        where("userId", "==", user.uid),
+        orderBy("createdAt", "desc"),
+        limit(10)
+      );
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setNotifications(notifs);
 
-        // Calculate unread (simple version: checks local storage for last read timestamp)
-        const lastRead = localStorage.getItem("lastReadNotificationTime");
-        const lastReadTime = lastRead ? new Date(lastRead).getTime() : 0;
-
-        const count = notifs.filter((n: any) => {
-          const notifTime = n.createdAt?.toDate ? n.createdAt.toDate().getTime() : new Date(n.createdAt).getTime();
-          return notifTime > lastReadTime;
-        }).length;
-
+        // Count unread notifications
+        const count = notifs.filter((n: any) => !n.read).length;
         setUnreadCount(count);
       });
       return () => unsubscribe();
@@ -70,6 +68,30 @@ const Header = () => {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-primary/10">
+      {!user && (
+        <div className="w-full bg-primary text-primary-foreground py-1 overflow-hidden">
+          <style>
+            {`
+              @keyframes marquee-header {
+                0% { transform: translateX(0); }
+                100% { transform: translateX(-50%); }
+              }
+              .animate-marquee {
+                display: inline-block;
+                white-space: nowrap;
+                animation: marquee-header 30s linear infinite;
+              }
+            `}
+          </style>
+          <div className="animate-marquee">
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
+              <span key={i} className="mx-8 text-sm font-medium">
+                Please login first. कृपया पहले लॉगिन करें.
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="container-custom">
         <div className="flex items-center justify-between h-16 md:h-20 px-4">
           {/* Logo */}

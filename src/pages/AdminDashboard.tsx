@@ -966,9 +966,66 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
 
   const handleUpdateApplicationStatus = async (id: string, newStatus: string) => {
     try {
+      // Get the application to find the userId and job details
+      const application = applications.find(app => app.id === id);
+
       await updateDoc(doc(db, "job_applications", id), {
         status: newStatus
       });
+
+      // Create notification for the user if userId exists
+      if (application?.userId) {
+        const statusMessages: Record<string, { title: string; message: string; type: string }> = {
+          'new': {
+            title: 'Application Received',
+            message: `Your application for ${application.jobTitle} has been received.`,
+            type: 'info'
+          },
+          'reviewed': {
+            title: 'Application Reviewed',
+            message: `Your application for ${application.jobTitle} has been reviewed.`,
+            type: 'info'
+          },
+          'interviewing': {
+            title: 'Interview Scheduled',
+            message: `Congratulations! You've been shortlisted for ${application.jobTitle}. We'll contact you soon.`,
+            type: 'success'
+          },
+          'offer': {
+            title: 'Offer Extended',
+            message: `Great news! We'd like to offer you the ${application.jobTitle} position.`,
+            type: 'success'
+          },
+          'hired': {
+            title: 'Welcome Aboard!',
+            message: `Congratulations! You've been hired for ${application.jobTitle}.`,
+            type: 'success'
+          },
+          'rejected': {
+            title: 'Application Update',
+            message: `Thank you for your interest in ${application.jobTitle}. We've decided to move forward with other candidates.`,
+            type: 'info'
+          }
+        };
+
+        const notificationData = statusMessages[newStatus] || {
+          title: 'Application Status Updated',
+          message: `Your application for ${application.jobTitle} status has been updated to ${newStatus}.`,
+          type: 'info'
+        };
+
+        await addDoc(collection(db, "notifications"), {
+          userId: application.userId,
+          title: notificationData.title,
+          message: notificationData.message,
+          type: notificationData.type,
+          createdAt: new Date(),
+          read: false,
+          relatedTo: 'job_application',
+          relatedId: id
+        });
+      }
+
       toast({ title: "Status Updated", description: `Application marked as ${newStatus}` });
       setApplications(prev => prev.map(app => app.id === id ? { ...app, status: newStatus } : app));
     } catch (error) {

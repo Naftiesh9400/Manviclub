@@ -16,6 +16,7 @@ import { Briefcase, MapPin, Clock, Loader2, Send, Search } from "lucide-react";
 import { getFirestore, collection, getDocs, addDoc, query, orderBy } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Job {
   id: string;
@@ -26,11 +27,12 @@ interface Job {
 }
 
 const Openings = () => {
+  const { user } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [filteredJobs, setFilteredJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  
+
   // Application state
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [isApplicationOpen, setIsApplicationOpen] = useState(false);
@@ -59,7 +61,7 @@ const Openings = () => {
   }, []);
 
   useEffect(() => {
-    const filtered = jobs.filter(job => 
+    const filtered = jobs.filter(job =>
       job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       job.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
       job.type.toLowerCase().includes(searchTerm.toLowerCase())
@@ -68,13 +70,24 @@ const Openings = () => {
   }, [searchTerm, jobs]);
 
   const handleApply = (job: Job | null) => {
+    console.log('User data:', { displayName: user?.displayName, email: user?.email, uid: user?.uid });
     setSelectedJob(job);
     setFormData({
       jobId: job?.id || 'general',
       jobTitle: job?.title || 'General Application',
+      name: user?.displayName || '',
+      email: user?.email || '',
     });
     setResumeFile(null);
     setIsApplicationOpen(true);
+
+    if (!user) {
+      toast({
+        title: "Not Logged In",
+        description: "Please log in to auto-fill your details.",
+        variant: "default",
+      });
+    }
   };
 
   const handleSubmitApplication = async (e: React.FormEvent) => {
@@ -104,10 +117,11 @@ const Openings = () => {
         portfolio: formData.portfolio || '',
         coverLetter: formData.coverLetter || '',
         resumeUrl,
+        userId: user?.uid || '',
         appliedAt: new Date(),
         status: 'new'
       });
-      
+
       toast({
         title: "Application Sent!",
         description: "We've received your application and will be in touch soon.",
@@ -142,11 +156,11 @@ const Openings = () => {
             <p className="text-lg text-muted-foreground leading-relaxed mb-8">
               Explore exciting opportunities to work with Manvi Fishing Club.
             </p>
-            
+
             <div className="relative max-w-md mx-auto">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search by role or location..." 
+              <Input
+                placeholder="Search by role or location..."
                 className="pl-10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -207,36 +221,36 @@ const Openings = () => {
           <form onSubmit={handleSubmitApplication} className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label>Full Name</Label>
-              <Input required placeholder="John Doe" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} />
+              <Input required placeholder="John Doe" value={formData.name || ''} onChange={e => setFormData({ ...formData, name: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label>Email</Label>
-              <Input required type="email" placeholder="john@example.com" value={formData.email || ''} onChange={e => setFormData({...formData, email: e.target.value})} />
+              <Input required type="email" placeholder="john@example.com" value={formData.email || ''} onChange={e => setFormData({ ...formData, email: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label>Phone</Label>
-              <Input required placeholder="+91 98765 43210" value={formData.phone || ''} onChange={e => setFormData({...formData, phone: e.target.value})} />
+              <Input required placeholder="+91 98765 43210" value={formData.phone || ''} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label>Resume (PDF/Word)</Label>
-              <Input 
-                type="file" 
+              <Input
+                type="file"
                 accept=".pdf,.doc,.docx"
-                onChange={(e) => setResumeFile(e.target.files ? e.target.files[0] : null)} 
+                onChange={(e) => setResumeFile(e.target.files ? e.target.files[0] : null)}
               />
             </div>
             <div className="space-y-2">
               <Label>LinkedIn / Portfolio URL</Label>
-              <Input placeholder="https://linkedin.com/in/..." value={formData.portfolio || ''} onChange={e => setFormData({...formData, portfolio: e.target.value})} />
+              <Input placeholder="https://linkedin.com/in/..." value={formData.portfolio || ''} onChange={e => setFormData({ ...formData, portfolio: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label>Cover Letter / Experience</Label>
-              <Textarea 
-                required 
-                placeholder="Tell us about your experience and why you'd be a good fit..." 
+              <Textarea
+                required
+                placeholder="Tell us about your experience and why you'd be a good fit..."
                 rows={4}
-                value={formData.coverLetter || ''} 
-                onChange={e => setFormData({...formData, coverLetter: e.target.value})} 
+                value={formData.coverLetter || ''}
+                onChange={e => setFormData({ ...formData, coverLetter: e.target.value })}
               />
             </div>
             <Button type="submit" className="w-full" disabled={isSubmitting}>
