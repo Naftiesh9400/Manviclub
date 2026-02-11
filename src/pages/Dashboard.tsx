@@ -12,15 +12,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Crown, 
-  Star, 
-  Zap, 
-  Trophy, 
-  Calendar, 
-  Camera, 
-  Users, 
-  Gift, 
+import {
+  Crown,
+  Star,
+  Zap,
+  Trophy,
+  Calendar,
+  Camera,
+  Users,
+  Gift,
   Settings,
   LogOut,
   ChevronRight,
@@ -49,7 +49,7 @@ const Dashboard = () => {
     const fetchPlanData = async () => {
       if (!user) return;
       const db = getFirestore();
-      
+
       let featuresToDisplay: string[] = [];
       let isUnlocked = false;
 
@@ -59,10 +59,10 @@ const Dashboard = () => {
           // Try to find by planId first (exact or lowercase)
           let q = query(collection(db, "membershipPlans"), where("planId", "==", membership.plan));
           let snapshot = await getDocs(q);
-          
+
           if (snapshot.empty) {
-             q = query(collection(db, "membershipPlans"), where("planId", "==", membership.plan.toLowerCase()));
-             snapshot = await getDocs(q);
+            q = query(collection(db, "membershipPlans"), where("planId", "==", membership.plan.toLowerCase()));
+            snapshot = await getDocs(q);
           }
 
           if (!snapshot.empty) {
@@ -87,15 +87,15 @@ const Dashboard = () => {
             const data = snapshot.docs[0].data();
             featuresToDisplay = data.features || [];
           } else {
-             // Fallback defaults if no plans in DB
-             featuresToDisplay = [
+            // Fallback defaults if no plans in DB
+            featuresToDisplay = [
               "Member Events",
               "Community Forum",
               "Photo Gallery",
               "Tournament Priority",
               "Expert Mentorship",
               "VIP Access"
-             ];
+            ];
           }
           isUnlocked = false;
         }
@@ -170,8 +170,8 @@ const Dashboard = () => {
     }
   };
 
-  const daysLeft = membership.expiresAt 
-    ? Math.ceil((membership.expiresAt.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) 
+  const daysLeft = membership.expiresAt
+    ? Math.ceil((membership.expiresAt.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
     : null;
 
   const handleLogout = async () => {
@@ -256,16 +256,16 @@ const Dashboard = () => {
                       Upgrade Plan
                     </Button>
                   </Link>
-              ) : (
-                <Button 
-                  variant="ghost" 
-                  size="lg" 
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto"
-                  onClick={() => setIsCancelOpen(true)}
-                >
-                  Cancel Membership
-                </Button>
-              )}
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="lg"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 w-full sm:w-auto"
+                    onClick={() => setIsCancelOpen(true)}
+                  >
+                    Cancel Membership
+                  </Button>
+                )}
               </div>
             </div>
           </div>
@@ -292,49 +292,47 @@ const Dashboard = () => {
             {featuresLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>
             ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {displayFeatures.map((content, index) => (
-                <div
-                  key={index}
-                  className={`card-premium p-6 ${
-                    content.unlocked 
-                      ? "border-secondary/30" 
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {displayFeatures.map((content, index) => (
+                  <div
+                    key={index}
+                    className={`card-premium p-6 ${content.unlocked
+                      ? "border-secondary/30"
                       : "opacity-60 grayscale"
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <content.icon className={`w-6 h-6 ${
-                      content.unlocked ? "text-secondary" : "text-muted-foreground"
-                    }`} />
-                    {content.unlocked ? (
-                      <span className="bg-secondary/20 text-secondary text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                        <Check className="w-3 h-3" /> Unlocked
-                      </span>
-                    ) : (
-                      <span className="bg-muted text-muted-foreground text-xs px-2 py-1 rounded-full">
-                        Locked
-                      </span>
+                      }`}
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <content.icon className={`w-6 h-6 ${content.unlocked ? "text-secondary" : "text-muted-foreground"
+                        }`} />
+                      {content.unlocked ? (
+                        <span className="bg-secondary/20 text-secondary text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                          <Check className="w-3 h-3" /> Unlocked
+                        </span>
+                      ) : (
+                        <span className="bg-muted text-muted-foreground text-xs px-2 py-1 rounded-full">
+                          Locked
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="font-semibold text-foreground mb-1">{content.title}</h3>
+                    <p className="text-sm text-muted-foreground mb-3">{content.description}</p>
+                    {content.link && content.unlocked ? (
+                      <Link to={content.link}>
+                        <Button variant="ghost" size="sm" className="w-full justify-between">
+                          Access Now
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
+                      </Link>
+                    ) : !content.unlocked && (
+                      <Link to="/#membership">
+                        <Button variant="outline" size="sm" className="w-full">
+                          Upgrade to Unlock
+                        </Button>
+                      </Link>
                     )}
                   </div>
-                  <h3 className="font-semibold text-foreground mb-1">{content.title}</h3>
-                  <p className="text-sm text-muted-foreground mb-3">{content.description}</p>
-                  {content.link && content.unlocked ? (
-                    <Link to={content.link}>
-                      <Button variant="ghost" size="sm" className="w-full justify-between">
-                        Access Now
-                        <ChevronRight className="w-4 h-4" />
-                      </Button>
-                    </Link>
-                  ) : !content.unlocked && (
-                    <Link to="/#membership">
-                      <Button variant="outline" size="sm" className="w-full">
-                        Upgrade to Unlock
-                      </Button>
-                    </Link>
-                  )}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
             )}
           </div>
 
@@ -353,7 +351,7 @@ const Dashboard = () => {
           <DialogHeader>
             <DialogTitle>Cancel Membership?</DialogTitle>
             <DialogDescription>
-              Are you sure you want to cancel your {membership.plan} membership? 
+              Are you sure you want to cancel your {membership.plan} membership?
               You will lose access to exclusive features immediately. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>

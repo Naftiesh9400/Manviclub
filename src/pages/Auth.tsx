@@ -34,7 +34,7 @@ const Auth = () => {
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string; name?: string } = {};
-    
+
     try {
       emailSchema.parse(email);
     } catch (e) {
@@ -67,7 +67,7 @@ const Auth = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
 
     setIsLoading(true);
@@ -89,7 +89,7 @@ const Auth = () => {
     } catch (error: any) {
       console.error("Auth error:", error);
       let message = "An error occurred. Please try again.";
-      
+
       if (error.code === "auth/user-not-found") {
         message = "No account found with this email.";
       } else if (error.code === "auth/wrong-password") {
@@ -130,9 +130,30 @@ const Auth = () => {
       });
     } catch (error: any) {
       console.error("Google login error:", error);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
+
+      let message = "Failed to login with Google. Please try again.";
+
+      if (error.code === "auth/popup-closed-by-user") {
+        message = "Sign-in popup was closed. Please try again.";
+      } else if (error.code === "auth/popup-blocked") {
+        message = "Popup was blocked by your browser. Please allow popups for this site.";
+      } else if (error.code === "auth/cancelled-popup-request") {
+        message = "Another popup is already open. Please close it and try again.";
+      } else if (error.code === "auth/network-request-failed") {
+        message = "Network error. Please check your internet connection.";
+      } else if (error.code === "auth/unauthorized-domain") {
+        message = "This domain is not authorized for Google sign-in. Please contact support.";
+      } else if (error.code === "auth/operation-not-allowed") {
+        message = "Google sign-in is not enabled. Please contact support.";
+      } else if (error.message) {
+        message = error.message;
+      }
+
       toast({
-        title: "Error",
-        description: "Failed to login with Google. Please try again.",
+        title: "Google Login Error",
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -178,7 +199,7 @@ const Auth = () => {
                   <Input
                     id="name"
                     type="text"
-                    placeholder="John Doe"
+                    placeholder="Enter full name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="pl-10"

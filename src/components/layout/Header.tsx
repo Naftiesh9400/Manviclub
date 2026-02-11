@@ -72,16 +72,16 @@ const Header = () => {
         <div className="w-full bg-primary text-primary-foreground py-1 overflow-hidden">
           <style>
             {`
-              @keyframes marquee-header {
-                0% { transform: translateX(0); }
-                100% { transform: translateX(-50%); }
-              }
-              .animate-marquee {
-                display: inline-block;
-                white-space: nowrap;
-                animation: marquee-header 30s linear infinite;
-              }
-            `}
+                @keyframes marquee-header {
+                  0% { transform: translateX(0); }
+                  100% { transform: translateX(-50%); }
+                }
+                .animate-marquee {
+                  display: inline-block;
+                  white-space: nowrap;
+                  animation: marquee-header 30s linear infinite;
+                }
+              `}
           </style>
           <div className="animate-marquee">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (

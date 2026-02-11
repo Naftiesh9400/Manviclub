@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { 
-  User, 
-  onAuthStateChanged, 
-  signInWithEmailAndPassword, 
+import {
+  User,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
   updateProfile,
@@ -60,7 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      
+
       // Cleanup previous snapshot listener if exists
       if (unsubscribeSnapshot) {
         unsubscribeSnapshot();
@@ -77,7 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const data = docSnapshot.data();
             if (data.membership) {
               const expiresAt = data.membership.expiresAt?.toDate ? data.membership.expiresAt.toDate() : new Date(data.membership.expiresAt);
-              
+
               // Check if membership has expired
               if (expiresAt && expiresAt < new Date()) {
                 try {
@@ -150,19 +150,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginWithGoogle = async () => {
-    const provider = new GoogleAuthProvider();
-    const result = await signInWithPopup(auth, provider);
-    const user = result.user;
-    
-    const userDoc = await getDoc(doc(db, "users", user.uid));
-    if (!userDoc.exists()) {
-      await setDoc(doc(db, "users", user.uid), {
-        email: user.email,
-        displayName: user.displayName,
-        role: "user",
-        createdAt: new Date(),
-        provider: "google"
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({
+        prompt: 'select_account'
       });
+
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (!userDoc.exists()) {
+        await setDoc(doc(db, "users", user.uid), {
+          email: user.email,
+          displayName: user.displayName,
+          role: "user",
+          createdAt: new Date(),
+          provider: "google"
+        });
+      }
+    } catch (error: any) {
+      console.error("loginWithGoogle error:", error);
+      throw error; // Re-throw to be caught by the calling function
     }
   };
 
@@ -170,13 +179,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const now = new Date();
     const expiresAt = new Date(now);
     expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-    
+
     const membershipData: MembershipData = {
       plan,
       purchasedAt: now,
       expiresAt
     };
-    
+
     if (user) {
       await setDoc(doc(db, "users", user.uid), {
         membership: membershipData
