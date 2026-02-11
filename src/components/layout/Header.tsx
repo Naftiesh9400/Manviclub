@@ -110,7 +110,6 @@ const Header = () => {
   const navLinks = [
     { name: "About", href: "/about-us" },
     { name: "Tournaments", href: "/tournaments" },
-    { name: "Team", href: "/about-us#team" },
     { name: "Gallery", href: "/gallery" },
     { name: "Membership", href: "/#membership" },
     { name: "Careers", href: "/careers" },
@@ -242,7 +241,7 @@ const Header = () => {
                     Dashboard
                   </Button>
                 </Link>
-                <Button variant="aqua" size="sm" onClick={handleLogout}>
+                <Button variant="default" size="sm" onClick={handleLogout}>
                   Logout
                 </Button>
               </>
@@ -254,7 +253,7 @@ const Header = () => {
                   </Button>
                 </Link>
                 <Link to="/auth">
-                  <Button variant="aqua" size="sm">
+                  <Button variant="default" size="sm">
                     Join Club
                   </Button>
                 </Link>
@@ -321,7 +320,7 @@ const Header = () => {
                         Dashboard
                       </Button>
                     </Link>
-                    <Button variant="aqua" className="w-full" onClick={handleLogout}>
+                    <Button variant="default" className="w-full" onClick={handleLogout}>
                       Logout
                     </Button>
                   </>
@@ -333,7 +332,7 @@ const Header = () => {
                       </Button>
                     </Link>
                     <Link to="/auth" onClick={() => setIsMenuOpen(false)}>
-                      <Button variant="aqua" className="w-full">
+                      <Button variant="default" className="w-full">
                         Join Club
                       </Button>
                     </Link>
