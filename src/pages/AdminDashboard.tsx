@@ -51,12 +51,13 @@ import {
   Mail,
   TrendingUp,
   Settings,
-  Eye
+  Eye,
+  Database
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
-type Tab = "overview" | "tournaments" | "registrations" | "users" | "gallery" | "sales" | "memberships" | "jobs" | "applications" | "newsletter" | "leaderboard" | "notifications" | "ems" | "settings";
+type Tab = "overview" | "tournaments" | "registrations" | "users" | "gallery" | "sales" | "memberships" | "jobs" | "applications" | "newsletter" | "leaderboard" | "notifications" | "ems" | "sections" | "settings";
 
 const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) => {
   const { user, isAdmin, loading: authLoading } = useAuth();
@@ -81,6 +82,9 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
+  const [sections, setSections] = useState<any[]>([]);
+  const [sectionItems, setSectionItems] = useState<any[]>([]);
+  const [selectedSection, setSelectedSection] = useState<any>(null);
 
   // Form States
   const [showForm, setShowForm] = useState(false);
@@ -129,7 +133,7 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
         setTournaments(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       }
 
-      if (tab === "overview" || tab === "users") {
+      if (tab === "overview" || tab === "users" || tab === "notifications") {
         const snapshot = await getDocs(collection(db, "users"));
         setUsers(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       }
@@ -187,6 +191,16 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
         const q = query(collection(db, "notifications"), orderBy("createdAt", "desc"));
         const snapshot = await getDocs(q);
         setNotifications(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+
+      if (tab === "overview" || tab === "sections") {
+        const q = query(collection(db, "sections"), orderBy("order", "asc"));
+        const snapshot = await getDocs(q);
+        setSections(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+
+        // Fetch all section items
+        const itemsSnapshot = await getDocs(collection(db, "section_items"));
+        setSectionItems(itemsSnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
       }
 
       if (tab === "settings") {
@@ -815,13 +829,32 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
     e.preventDefault();
     setIsLoading(true);
     try {
-      await addDoc(collection(db, "notifications"), {
+      const notificationData = {
         title: formData.title,
         message: formData.message,
         type: formData.type || 'info', // info, urgent, success
-        createdAt: new Date()
+        targetAudience: formData.targetAudience || 'all', // 'all' or userId
+        targetUserId: formData.targetUserId || null, // specific user ID if not 'all'
+        createdAt: new Date(),
+        read: false
+      };
+
+      await addDoc(collection(db, "notifications"), notificationData);
+
+      // If targeting specific user, also add to user's notifications subcollection
+      if (formData.targetAudience === 'specific' && formData.targetUserId) {
+        await addDoc(collection(db, "users", formData.targetUserId, "notifications"), {
+          ...notificationData,
+          sentBy: 'admin'
+        });
+      }
+
+      toast({
+        title: "Success",
+        description: formData.targetAudience === 'all'
+          ? "Notification broadcast to all users"
+          : "Notification sent to selected user"
       });
-      toast({ title: "Success", description: "Notification sent successfully" });
       setShowForm(false);
       setFormData({});
       fetchData("notifications");
@@ -1048,6 +1081,146 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
     } catch (error) {
       console.error("Error saving note:", error);
       toast({ title: "Error", description: "Failed to save note", variant: "destructive" });
+    }
+  };
+
+  // Section Management Handlers
+  const handleSaveSection = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      const sectionData = {
+        name: formData.name,
+        description: formData.description || '',
+        icon: formData.icon || '',
+        order: Number(formData.order) || 0,
+        updatedAt: new Date()
+      };
+
+      if (formData.id) {
+        await updateDoc(doc(db, "sections", formData.id), sectionData);
+        toast({ title: "Success", description: "Section updated successfully" });
+      } else {
+        await addDoc(collection(db, "sections"), { ...sectionData, createdAt: new Date() });
+        toast({ title: "Success", description: "Section created successfully" });
+      }
+      setShowForm(false);
+      setFormData({});
+      fetchData("sections");
+    } catch (error) {
+      console.error("Error saving section:", error);
+      toast({ title: "Error", description: "Failed to save section", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveSectionItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      const itemData = {
+        sectionId: formData.sectionId || selectedSection?.id,
+        title: formData.title,
+        description: formData.description || '',
+        imageUrl: formData.imageUrl || '',
+        metadata: formData.metadata ? JSON.parse(formData.metadata) : {},
+        order: Number(formData.order) || 0,
+        status: formData.status || 'active',
+        updatedAt: new Date()
+      };
+
+      if (formData.id) {
+        await updateDoc(doc(db, "section_items", formData.id), itemData);
+        toast({ title: "Success", description: "Item updated successfully" });
+      } else {
+        await addDoc(collection(db, "section_items"), { ...itemData, createdAt: new Date() });
+        toast({ title: "Success", description: "Item created successfully" });
+      }
+      setShowForm(false);
+      setFormData({});
+      fetchData("sections");
+    } catch (error) {
+      console.error("Error saving item:", error);
+      toast({ title: "Error", description: "Failed to save item", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSeedSections = async () => {
+    if (sections.length > 0 && !window.confirm("You already have sections. Add defaults anyway?")) return;
+    setIsLoading(true);
+    try {
+      const defaultSections = [
+        {
+          name: "Products",
+          description: "Our fishing products and equipment",
+          icon: "Package",
+          order: 1
+        },
+        {
+          name: "Services",
+          description: "Services we offer to members",
+          icon: "Briefcase",
+          order: 2
+        },
+        {
+          name: "Resources",
+          description: "Helpful resources and guides",
+          icon: "BookOpen",
+          order: 3
+        }
+      ];
+
+      for (const section of defaultSections) {
+        await addDoc(collection(db, "sections"), { ...section, createdAt: new Date(), updatedAt: new Date() });
+      }
+      toast({ title: "Success", description: "Default sections added" });
+      fetchData("sections");
+    } catch (error) {
+      console.error("Error seeding sections:", error);
+      toast({ title: "Error", description: "Failed to seed sections", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteSection = async (id: string) => {
+    if (!window.confirm("Delete this section and all its items?")) return;
+    setIsLoading(true);
+    try {
+      // Delete all items in this section
+      const itemsQuery = query(collection(db, "section_items"), where("sectionId", "==", id));
+      const itemsSnapshot = await getDocs(itemsQuery);
+      for (const itemDoc of itemsSnapshot.docs) {
+        await deleteDoc(doc(db, "section_items", itemDoc.id));
+      }
+
+      // Delete the section
+      await deleteDoc(doc(db, "sections", id));
+      toast({ title: "Success", description: "Section and its items deleted" });
+      fetchData("sections");
+    } catch (error) {
+      console.error("Error deleting section:", error);
+      toast({ title: "Error", description: "Failed to delete section", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteSectionItem = async (id: string) => {
+    if (!window.confirm("Delete this item?")) return;
+    setIsLoading(true);
+    try {
+      await deleteDoc(doc(db, "section_items", id));
+      toast({ title: "Success", description: "Item deleted" });
+      fetchData("sections");
+    } catch (error) {
+      console.error("Error deleting item:", error);
+      toast({ title: "Error", description: "Failed to delete item", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -2213,13 +2386,84 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
 
 
 
+  const handleSeedTeamMembers = async () => {
+    if (!window.confirm("This will add default team members to the database. Continue?")) return;
+    setIsLoading(true);
+    try {
+      const defaultMembers = [
+        {
+          name: "Mr. Manish Sharma",
+          role: "Founder & Managing Director",
+          bio: "Highly qualified with over 16 years of experience in management activities, he manages several companies and has served as a member of various advisory committees of the Government of India. He possesses qualities such as passion, idealism, honesty, positive attitude, goal-orientation, and self-reliance. With 16 years of experience, he has been nationally recognized for his work in fisheries/industry. In 2010, he started several businesses including construction, media, and business. In 2021, he established Messrs Manvi Fish and Duck Farming India Private Limited and incorporated it in the same year.",
+          bioHindi: "उच्च योग्यता प्राप्त और प्रबंधन गतिविधियों में 16 वर्षों से अधिक का अनुभव रखने वाले, उन्होंने कई कंपनियों का प्रबंधन भी कर रहे है और भारत सरकार की कई सलाहकार समितियों के सदस्य के रूप में कार्य किया है।उनमें जुनून, आदर्शवाद, ईमानदारी, सकारात्मक दृष्टिकोण, लक्ष्य-उन्मुखीकरण और आत्मनिर्भरता जैसे गुण होते हैं।16 वर्षों के अनुभव के साथ, उन्हें मत्स्य पालन/उद्योग में उनके काम के लिए राष्ट्रीय स्तर पर मान्यता प्राप्त हुई है।2010 में उन्होंने निर्माण, मीडिया, व्यवसाय सहित कई व्यवसाय शुरू किए, 2021 में उन्होंने मेसर्स मानवी फिश एंड डक फार्मिंग इंडिया प्राइवेट लिमिटेड की स्थापना की और 2021 में ही मेसर्स मानवी फिश एंड डक फार्मिंग इंडिया प्राइवेट लिमिटेड को निगमित किया।",
+          shortBio: "Founder with 16+ years experience in management and fisheries industry, nationally recognized for his work."
+        },
+        {
+          name: "Mr. Srimanta Porel",
+          role: "Training & Management Director",
+          bio: "After obtaining a graduate degree from the university, he has been overseeing the company's training and management system for the past 5 years. He is responsible for quality, communication, and supervision with official bodies. He has the ability to effectively collaborate with people of different skill levels and provides guidance and direction to the company's executive directors.",
+          bioHindi: "विश्वविद्यालय से स्नातक की उपाधि प्राप्त करने के बाद, वे पिछले 5 वर्षों से कंपनी के प्रशिक्षण और प्रबंधन प्रणाली की देखरेख कर रहे हैं। वे गुणवत्ता, संचार और आधिकारिक निकायों के साथ पर्यवेक्षण के लिए जिम्मेदार हैं।अलग-अलग स्तर की कार्यकुशलता वाले लोगों के साथ प्रभावी ढंग से सहयोग करने की क्षमता मौजूद है। कंपनी के कार्यकारी निदेशकों को दिशा-निर्देश और मार्गदर्शन प्रदान करता है।",
+          shortBio: "Graduate overseeing training and management systems for 5 years, responsible for quality and communication."
+        },
+        {
+          name: "Ishant Sharma",
+          role: "Board Member",
+          bio: "A national player (Gold Medalist in Kia King National Championship), he is the youngest board member. Hardworking, enthusiastic, and passionate, his approach is always positive towards exploring new possibilities, understanding the market's unmet needs, and fulfilling them. Focused on his dedication and pursuit of excellence, he actively participates in various industrial development activities.",
+          bioHindi: "एक राष्ट्रीय खिलाड़ी (किया किंग राष्ट्रीय चैम्पियनशिप में स्वर्ण पदक विजेता) है, वह बोर्ड की सबसे युवा सदस्य हैं। मेहनती, उत्साही और जुनूनी, उनका दृष्टिकोण हमेशा नई संभावनाओं को तलाशने और बाजार की अनसुलझी जरूरतों को समझने और परिणामस्वरूप उन्हें पूरा करने के प्रति सकारात्मक रहता है।अपनी लगन और उत्कृष्टता की खोज पर केंद्रित रहते हुए, वह कई औद्योगिक विकास गतिविधियों में सक्रिय रूप से भाग लेते हैं।",
+          shortBio: "National player and youngest board member, gold medalist focused on new possibilities and market needs."
+        },
+        {
+          name: "Mr. Kartikey Pathak",
+          role: "Marketing & Transport Director",
+          bio: "As a graduate and entrepreneur with over 5 years of experience in transportation and fish marketing, as well as film and serial acting, he is dynamic, entrepreneurial, adaptable, and innovative in his business planning approach. He is credited with creating and developing new ideas for the fish farming website. He has played a significant role in the development of Manvi Fish and Duck Farming India Private Limited Industries.",
+          bioHindi: "परिवहन और मछली विपणन के साथ-साथ फिल्म और धारावाहिक अभिनय कला में 5 से अधिक वर्षों के अनुभव वाले स्नातक और उद्यमी के रूप में, वह अपने व्यावसायिक नियोजन दृष्टिकोण में गतिशील, उद्यमशील, अनुकूलनीय और नवोन्मेषी हैं।मछली पालन वेबसाइट के लिए नए विचार के निर्माण और विकास का श्रेय उन्हें ही जाता है। उन्होंने मानवी फिश एंड डक फार्मिंग इंडिया प्राइवेट लिमिटेड इंडस्ट्रीज के विकास में महत्वपूर्ण भूमिका निभाई है।",
+          shortBio: "Graduate and entrepreneur with 5+ years in transport and fish marketing, innovative in business planning."
+        },
+        {
+          name: "Isha Sharma",
+          role: "Executive Director",
+          bio: "A dynamic and visionary youngest female leader, currently leading the company's strategic development as Executive Director. While pursuing business studies, she specializes in bringing innovation and operational excellence to the company's business. Her vision has not only increased the company's productivity but also developed an inclusive and employee-friendly culture. Under her leadership, the company is further strengthening its position in the market.",
+          bioHindi: "एक गतिशील और दूरदर्शी सबसे युवा महिला लीडर हैं, जो वर्तमान में executive डायरेक्टर के रूप में कंपनी के रणनीतिक विकास का नेतृत्व कर रही हैं। बिजनेस विषय में अध्यनरत होने के साथ- साथ वे कंपनी व्यापार में नवाचार और परिचालन उत्कृष्टता लाने में माहिर हैं। उनकी दूरदर्शिता ने न केवल कंपनी की उत्पादकता को बढ़ाया है, बल्कि एक समावेशी और कर्मचारी-हितैषी संस्कृति भी विकसित की है। उनके नेतृत्व में, कंपनी बाजार में अपनी स्थिति को और अधिक मजबूत कर रही है।",
+          shortBio: "Youngest female Executive Director leading strategic development, specializing in innovation and operational excellence."
+        },
+        {
+          name: "Mr. Priber Kumar Sinha",
+          role: "Director",
+          bio: "Mr. Sinha is a farmer with extensive experience in agriculture and fisheries, including work related to the textile industry. He is currently serving as a director in various non-governmental companies.",
+          bioHindi: "श्री सिन्हा कृषि और मत्स्य पालन में व्यापक अनुभव रखने वाले किसान हैं, जिनमें वस्त्र उद्योग से संबंधित कार्य भी शामिल हैं। वे वर्तमान में विभिन्न गैर-सरकारी कंपनियों में निदेशक के रूप में कार्यरत हैं।",
+          shortBio: "Experienced farmer in agriculture and fisheries, currently serving as director in various companies."
+        }
+      ];
+
+      for (const member of defaultMembers) {
+        await addDoc(collection(db, "team_members"), {
+          ...member,
+          createdAt: new Date()
+        });
+      }
+
+      toast({ title: "Success", description: "Default team members added successfully" });
+      fetchData("ems");
+    } catch (error) {
+      console.error("Error seeding team members:", error);
+      toast({ title: "Error", description: "Failed to seed team members", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const renderEMS = () => (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Team Management (EMS)</h2>
-        <Button onClick={() => { setShowForm(true); setFormData({}); }}>
-          <Plus className="w-4 h-4 mr-2" /> Add Team Member
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleSeedTeamMembers} disabled={isLoading}>
+            <Database className="w-4 h-4 mr-2" /> Seed Defaults
+          </Button>
+          <Button onClick={() => { setShowForm(true); setFormData({}); }}>
+            <Plus className="w-4 h-4 mr-2" /> Add Team Member
+          </Button>
+        </div>
       </div>
 
       {showForm && (
@@ -2361,12 +2605,35 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
                 <Label>Target Audience</Label>
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  disabled
+                  value={formData.targetAudience || 'all'}
+                  onChange={e => setFormData({ ...formData, targetAudience: e.target.value, targetUserId: null })}
                 >
                   <option value="all">All Users</option>
+                  <option value="specific">Specific User</option>
                 </select>
-                <p className="text-xs text-muted-foreground">Currently broadcasts to all registered users.</p>
               </div>
+
+              {formData.targetAudience === 'specific' && (
+                <div className="space-y-2">
+                  <Label>Select User</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={formData.targetUserId || ''}
+                    onChange={e => setFormData({ ...formData, targetUserId: e.target.value })}
+                    required
+                  >
+                    <option value="">-- Select a user --</option>
+                    {users.map(user => (
+                      <option key={user.id} value={user.id}>
+                        {user.displayName || user.email} ({user.email})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    {users.length} user{users.length !== 1 ? 's' : ''} available
+                  </p>
+                </div>
+              )}
             </div>
             <Button type="submit" disabled={isLoading}>
               {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
@@ -2386,6 +2653,7 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
                 <th className="px-4 py-3">Title</th>
                 <th className="px-4 py-3">Message</th>
                 <th className="px-4 py-3">Type</th>
+                <th className="px-4 py-3">Target</th>
                 <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
@@ -2403,6 +2671,15 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
                       {n.type?.toUpperCase() || 'INFO'}
                     </span>
                   </td>
+                  <td className="px-4 py-3 w-32">
+                    {n.targetAudience === 'specific' ? (
+                      <span className="text-xs text-muted-foreground">
+                        {users.find(u => u.id === n.targetUserId)?.email || 'Specific User'}
+                      </span>
+                    ) : (
+                      <span className="text-xs font-medium text-primary">All Users</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 w-20">
                     <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDeleteNotification(n.id)}>
                       <Trash2 className="w-4 h-4" />
@@ -2411,7 +2688,7 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
                 </tr>
               ))}
               {notifications.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">No notifications sent yet.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No notifications sent yet.</td></tr>
               )}
             </tbody>
           </table>
@@ -2493,63 +2770,443 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
     </div>
   );
 
+  const renderSections = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold">Sections & Items Management</h2>
+          <p className="text-muted-foreground">Manage custom sections and their items</p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={handleSeedSections} variant="outline" disabled={isLoading}>
+            <Sparkles className="w-4 h-4 mr-2" />
+            Add Sample Data
+          </Button>
+          <Button onClick={() => { setFormData({ order: sections.length }); setShowForm(true); }}>
+            <Plus className="w-4 h-4 mr-2" />
+            New Section
+          </Button>
+        </div>
+      </div>
+
+      {/* Sections List */}
+      <div className="grid gap-4">
+        {sections.map((section) => {
+          const items = sectionItems.filter(item => item.sectionId === section.id);
+          return (
+            <div key={section.id} className="border rounded-lg p-6 space-y-4">
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xl font-semibold">{section.name}</h3>
+                    <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
+                      Order: {section.order}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">{section.description}</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {items.length} item{items.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setFormData({ ...section, type: 'section' });
+                      setShowForm(true);
+                    }}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedSection(section);
+                      setFormData({ sectionId: section.id, order: items.length, type: 'item' });
+                      setShowForm(true);
+                    }}
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Add Item
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleDeleteSection(section.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Items in this section */}
+              {items.length > 0 && (
+                <div className="border-t pt-4 space-y-2">
+                  <h4 className="font-medium text-sm text-muted-foreground">Items:</h4>
+                  <div className="grid gap-2">
+                    {items.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{item.title}</p>
+                            <span className={`text-xs px-2 py-0.5 rounded ${item.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                              }`}>
+                              {item.status}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground line-clamp-1">{item.description}</p>
+                          {item.imageUrl && (
+                            <p className="text-xs text-muted-foreground mt-1">📷 Image attached</p>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setSelectedSection(section);
+                              setFormData({
+                                ...item,
+                                type: 'item',
+                                metadata: JSON.stringify(item.metadata || {}, null, 2)
+                              });
+                              setShowForm(true);
+                            }}
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteSectionItem(item.id)}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {sections.length === 0 && (
+          <div className="text-center py-12 border rounded-lg">
+            <p className="text-muted-foreground">No sections yet. Create one to get started!</p>
+          </div>
+        )}
+      </div>
+
+      {/* Form Dialog */}
+      {showForm && (
+        <Dialog open={showForm} onOpenChange={setShowForm}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {formData.type === 'item'
+                  ? (formData.id ? 'Edit Item' : 'New Item')
+                  : (formData.id ? 'Edit Section' : 'New Section')
+                }
+              </DialogTitle>
+              <DialogDescription>
+                {formData.type === 'item'
+                  ? 'Add or edit an item in this section'
+                  : 'Create or edit a section to organize your content'
+                }
+              </DialogDescription>
+            </DialogHeader>
+
+            {formData.type === 'item' ? (
+              <form onSubmit={handleSaveSectionItem} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Title *</Label>
+                  <Input
+                    required
+                    value={formData.title || ''}
+                    onChange={e => setFormData({ ...formData, title: e.target.value })}
+                    placeholder="Item title"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Description</Label>
+                  <textarea
+                    className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={formData.description || ''}
+                    onChange={e => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Item description"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Image URL</Label>
+                  <Input
+                    value={formData.imageUrl || ''}
+                    onChange={e => setFormData({ ...formData, imageUrl: e.target.value })}
+                    placeholder="https://example.com/image.jpg"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Order</Label>
+                    <Input
+                      type="number"
+                      value={formData.order || 0}
+                      onChange={e => setFormData({ ...formData, order: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={formData.status || 'active'}
+                      onChange={e => setFormData({ ...formData, status: e.target.value })}
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Metadata (JSON)</Label>
+                  <textarea
+                    className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                    value={formData.metadata || '{}'}
+                    onChange={e => setFormData({ ...formData, metadata: e.target.value })}
+                    placeholder='{"key": "value"}'
+                  />
+                  <p className="text-xs text-muted-foreground">Optional: Add custom data as JSON</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                    Save Item
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleSaveSection} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Section Name *</Label>
+                  <Input
+                    required
+                    value={formData.name || ''}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="e.g., Products, Services, Resources"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Description</Label>
+                  <Input
+                    value={formData.description || ''}
+                    onChange={e => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Brief description of this section"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Icon Name</Label>
+                    <Input
+                      value={formData.icon || ''}
+                      onChange={e => setFormData({ ...formData, icon: e.target.value })}
+                      placeholder="e.g., Package, Briefcase"
+                    />
+                    <p className="text-xs text-muted-foreground">Lucide icon name (optional)</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Display Order</Label>
+                    <Input
+                      type="number"
+                      value={formData.order || 0}
+                      onChange={e => setFormData({ ...formData, order: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                    Save Section
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
-      <aside className="w-64 border-r bg-card hidden md:block fixed h-full">
-        <div className="p-6">
-          <h1 className="font-display text-xl font-bold text-primary">Admin Panel</h1>
+      <aside className="w-64 border-r bg-gradient-to-b from-card to-card/50 hidden md:flex fixed h-full flex-col shadow-lg">
+        {/* Header */}
+        <div className="p-6 border-b bg-gradient-to-r from-primary/10 to-primary/5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <LayoutDashboard className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="font-display text-lg font-bold text-foreground">Admin Panel</h1>
+              <p className="text-xs text-muted-foreground">Manage your site</p>
+            </div>
+          </div>
         </div>
-        <nav className="px-4 space-y-2">
-          <Button variant={activeTab === "overview" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("overview")}>
-            <LayoutDashboard className="w-4 h-4 mr-2" /> Overview
-          </Button>
-          <Button variant={activeTab === "tournaments" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("tournaments")}>
-            <Trophy className="w-4 h-4 mr-2" /> Tournaments
-          </Button>
-          <Button variant={activeTab === "registrations" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("registrations")}>
-            <Users className="w-4 h-4 mr-2" /> Registrations
-          </Button>
-          <Button variant={activeTab === "users" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("users")}>
-            <Users className="w-4 h-4 mr-2" /> Users
-          </Button>
-          <Button variant={activeTab === "gallery" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("gallery")}>
-            <ImageIcon className="w-4 h-4 mr-2" /> Gallery
-          </Button>
-          <Button variant={activeTab === "sales" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("sales")}>
-            <CreditCard className="w-4 h-4 mr-2" /> Sales & Payments
-          </Button>
-          <Button variant={activeTab === "memberships" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("memberships")}>
-            <Crown className="w-4 h-4 mr-2" /> Memberships
-          </Button>
-          <Button variant={activeTab === "jobs" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("jobs")}>
-            <Briefcase className="w-4 h-4 mr-2" /> Jobs
-          </Button>
-          <Button variant={activeTab === "applications" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("applications")}>
-            <FileText className="w-4 h-4 mr-2" /> Applications
-          </Button>
-          <Button variant={activeTab === "newsletter" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("newsletter")}>
-            <Mail className="w-4 h-4 mr-2" /> Newsletter
-          </Button>
-          <Button variant={activeTab === "leaderboard" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("leaderboard")}>
-            <Trophy className="w-4 h-4 mr-2" /> Leaderboard
-          </Button>
-          <Button variant={activeTab === "notifications" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("notifications")}>
-            <Users className="w-4 h-4 mr-2" /> Notifications
-          </Button>
-          <Button variant={activeTab === "ems" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("ems")}>
-            <Users className="w-4 h-4 mr-2" /> Team Management (EMS)
-          </Button>
-          <Button variant={activeTab === "settings" ? "secondary" : "ghost"} className="w-full justify-start" onClick={() => setActiveTab("settings")}>
-            <Settings className="w-4 h-4 mr-2" /> Settings
-          </Button>
 
-          <div className="pt-8 mt-8 border-t">
-            <Button variant="outline" className="w-full justify-start text-muted-foreground" onClick={() => navigate("/dashboard")}>
-              ← Back to App
+        {/* Scrollable Navigation */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
+          <div className="space-y-1">
+            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Dashboard</p>
+            <Button
+              variant={activeTab === "overview" ? "secondary" : "ghost"}
+              className="w-full justify-start hover:bg-primary/5 transition-all"
+              onClick={() => setActiveTab("overview")}
+            >
+              <LayoutDashboard className="w-4 h-4 mr-2" /> Overview
+            </Button>
+          </div>
+
+          <div className="space-y-1 pt-4">
+            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Content</p>
+            <Button
+              variant={activeTab === "tournaments" ? "secondary" : "ghost"}
+              className="w-full justify-start hover:bg-primary/5 transition-all"
+              onClick={() => setActiveTab("tournaments")}
+            >
+              <Trophy className="w-4 h-4 mr-2" /> Tournaments
+            </Button>
+            <Button
+              variant={activeTab === "gallery" ? "secondary" : "ghost"}
+              className="w-full justify-start hover:bg-primary/5 transition-all"
+              onClick={() => setActiveTab("gallery")}
+            >
+              <ImageIcon className="w-4 h-4 mr-2" /> Gallery
+            </Button>
+            <Button
+              variant={activeTab === "leaderboard" ? "secondary" : "ghost"}
+              className="w-full justify-start hover:bg-primary/5 transition-all"
+              onClick={() => setActiveTab("leaderboard")}
+            >
+              <Trophy className="w-4 h-4 mr-2" /> Leaderboard
+            </Button>
+            <Button
+              variant={activeTab === "sections" ? "secondary" : "ghost"}
+              className="w-full justify-start hover:bg-primary/5 transition-all"
+              onClick={() => setActiveTab("sections")}
+            >
+              <LayoutDashboard className="w-4 h-4 mr-2" /> Sections & Items
+            </Button>
+          </div>
+
+          <div className="space-y-1 pt-4">
+            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Users & Teams</p>
+            <Button
+              variant={activeTab === "users" ? "secondary" : "ghost"}
+              className="w-full justify-start hover:bg-primary/5 transition-all"
+              onClick={() => setActiveTab("users")}
+            >
+              <Users className="w-4 h-4 mr-2" /> Users
+            </Button>
+            <Button
+              variant={activeTab === "registrations" ? "secondary" : "ghost"}
+              className="w-full justify-start hover:bg-primary/5 transition-all"
+              onClick={() => setActiveTab("registrations")}
+            >
+              <Users className="w-4 h-4 mr-2" /> Registrations
+            </Button>
+            <Button
+              variant={activeTab === "ems" ? "secondary" : "ghost"}
+              className="w-full justify-start hover:bg-primary/5 transition-all"
+              onClick={() => setActiveTab("ems")}
+            >
+              <Users className="w-4 h-4 mr-2" /> Team Management
+            </Button>
+          </div>
+
+          <div className="space-y-1 pt-4">
+            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Business</p>
+            <Button
+              variant={activeTab === "sales" ? "secondary" : "ghost"}
+              className="w-full justify-start hover:bg-primary/5 transition-all"
+              onClick={() => setActiveTab("sales")}
+            >
+              <CreditCard className="w-4 h-4 mr-2" /> Sales & Payments
+            </Button>
+            <Button
+              variant={activeTab === "memberships" ? "secondary" : "ghost"}
+              className="w-full justify-start hover:bg-primary/5 transition-all"
+              onClick={() => setActiveTab("memberships")}
+            >
+              <Crown className="w-4 h-4 mr-2" /> Memberships
+            </Button>
+          </div>
+
+          <div className="space-y-1 pt-4">
+            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Careers</p>
+            <Button
+              variant={activeTab === "jobs" ? "secondary" : "ghost"}
+              className="w-full justify-start hover:bg-primary/5 transition-all"
+              onClick={() => setActiveTab("jobs")}
+            >
+              <Briefcase className="w-4 h-4 mr-2" /> Jobs
+            </Button>
+            <Button
+              variant={activeTab === "applications" ? "secondary" : "ghost"}
+              className="w-full justify-start hover:bg-primary/5 transition-all"
+              onClick={() => setActiveTab("applications")}
+            >
+              <FileText className="w-4 h-4 mr-2" /> Applications
+            </Button>
+          </div>
+
+          <div className="space-y-1 pt-4">
+            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Communication</p>
+            <Button
+              variant={activeTab === "newsletter" ? "secondary" : "ghost"}
+              className="w-full justify-start hover:bg-primary/5 transition-all"
+              onClick={() => setActiveTab("newsletter")}
+            >
+              <Mail className="w-4 h-4 mr-2" /> Newsletter
+            </Button>
+            <Button
+              variant={activeTab === "notifications" ? "secondary" : "ghost"}
+              className="w-full justify-start hover:bg-primary/5 transition-all"
+              onClick={() => setActiveTab("notifications")}
+            >
+              <Users className="w-4 h-4 mr-2" /> Notifications
+            </Button>
+          </div>
+
+          <div className="space-y-1 pt-4 pb-4">
+            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">System</p>
+            <Button
+              variant={activeTab === "settings" ? "secondary" : "ghost"}
+              className="w-full justify-start hover:bg-primary/5 transition-all"
+              onClick={() => setActiveTab("settings")}
+            >
+              <Settings className="w-4 h-4 mr-2" /> Settings
             </Button>
           </div>
         </nav>
+
+        {/* Footer */}
+        <div className="p-4 border-t bg-card/50">
+          <Button
+            variant="outline"
+            className="w-full justify-start text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => navigate("/dashboard")}
+          >
+            ← Back to App
+          </Button>
+        </div>
       </aside>
 
       {/* Main Content */}
@@ -2568,10 +3225,11 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
           {activeTab === "leaderboard" && renderLeaderboard()}
           {activeTab === "notifications" && renderNotifications()}
           {activeTab === "ems" && renderEMS()}
+          {activeTab === "sections" && renderSections()}
           {activeTab === "settings" && renderSettings()}
         </div>
       </main>
-    </div>
+    </div >
   );
 };
 

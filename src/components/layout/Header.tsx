@@ -24,24 +24,79 @@ const Header = () => {
 
   useEffect(() => {
     if (user) {
-      // Listen for user-specific notifications
-      const q = query(
+      // 1. Listen for global broadcasts
+      const qBroadcast = query(
         collection(db, "notifications"),
-        where("userId", "==", user.uid),
+        where("targetAudience", "==", "all"),
         orderBy("createdAt", "desc"),
         limit(10)
       );
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setNotifications(notifs);
 
-        // Count unread notifications
-        const count = notifs.filter((n: any) => !n.read).length;
+      // 2. Listen for user-specific notifications (from subcollection)
+      const qPersonal = query(
+        collection(db, "users", user.uid, "notifications"),
+        orderBy("createdAt", "desc"),
+        limit(10)
+      );
+
+      let broadcastUnsub = () => { };
+      let personalUnsub = () => { };
+
+      // We need to merge results from both listeners
+      let broadcasts: any[] = [];
+      let personal: any[] = [];
+
+      const updateNotifications = () => {
+        // Merge and sort by date descending
+        const allNotifs = [...broadcasts, ...personal].sort((a, b) => {
+          const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+          const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+          return dateB.getTime() - dateA.getTime();
+        });
+
+        // Take top 10 most recent
+        const recentNotifs = allNotifs.slice(0, 10);
+        setNotifications(recentNotifs);
+
+        // Calculate unread count (assuming local storage logic for 'last read' time)
+        const lastReadTime = localStorage.getItem("lastReadNotificationTime");
+        const lastReadDate = lastReadTime ? new Date(lastReadTime) : new Date(0);
+
+        const count = recentNotifs.filter(n => {
+          const notifDate = n.createdAt?.toDate ? n.createdAt.toDate() : new Date(n.createdAt);
+          return notifDate > lastReadDate;
+        }).length;
+
         setUnreadCount(count);
-      });
-      return () => unsubscribe();
+      };
+
+      try {
+        broadcastUnsub = onSnapshot(qBroadcast, (snapshot) => {
+          broadcasts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          updateNotifications();
+        }, (error) => {
+          console.error("Error fetching broadcasts:", error);
+        });
+
+        personalUnsub = onSnapshot(qPersonal, (snapshot) => {
+          personal = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          updateNotifications();
+        }, (error) => {
+          console.error("Error fetching personal notifications:", error);
+        });
+      } catch (error) {
+        console.error("Error setting up notification listeners:", error);
+      }
+
+      return () => {
+        broadcastUnsub();
+        personalUnsub();
+      };
+    } else {
+      setNotifications([]);
+      setUnreadCount(0);
     }
-  }, [user]);
+  }, [user, db]);
 
   const handleNotificationClick = () => {
     setIsNotificationsOpen(!isNotificationsOpen);
