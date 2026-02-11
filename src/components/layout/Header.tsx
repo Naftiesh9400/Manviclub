@@ -140,7 +140,7 @@ const Header = () => {
           <div className="animate-marquee">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
               <span key={i} className="mx-8 text-sm font-medium">
-                Welcome to Manvi Fishing Club! Join us for an elite fishing experience. मानवी फिशिंग क्लब में आपका स्वागत है!
+                Welcome to Manvi Fishing Club!. मानवी फिशिंग क्लब में आपका स्वागत है!
               </span>
             ))}
           </div>
