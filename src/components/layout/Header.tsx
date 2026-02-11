@@ -110,10 +110,10 @@ const Header = () => {
   const navLinks = [
     { name: "About", href: "/about-us" },
     { name: "Tournaments", href: "/tournaments" },
+    { name: "Team", href: "/about-us#team" },
     { name: "Gallery", href: "/gallery" },
     { name: "Membership", href: "/#membership" },
     { name: "Careers", href: "/careers" },
-
   ];
 
   const handleLogout = async () => {
@@ -141,7 +141,7 @@ const Header = () => {
           <div className="animate-marquee">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
               <span key={i} className="mx-8 text-sm font-medium">
-                Please login first. कृपया पहले लॉगिन करें.
+                Welcome to Manvi Fishing Club! Join us for an elite fishing experience. मानवी फिशिंग क्लब में आपका स्वागत है!
               </span>
             ))}
           </div>
