@@ -1763,7 +1763,7 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
                     </td>
                     <td className="px-4 py-3 capitalize">{u.membership?.plan || 'None'}</td>
                     <td className="px-4 py-3">{u.createdAt?.toDate ? u.createdAt.toDate().toLocaleDateString() : 'N/A'}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 flex gap-2">
                       <Button variant="ghost" size="icon" onClick={() => {
                         setFormData({
                           id: u.id,
@@ -1774,6 +1774,9 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
                         setShowForm(true);
                       }}>
                         <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDelete("users", u.id)}>
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </td>
                   </tr>
