@@ -7,10 +7,12 @@ import {
   signOut,
   updateProfile,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  UserCredential,
+  sendPasswordResetEmail
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot } from "firebase/firestore";
+import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot, collection, query, where, getDocs, deleteDoc } from "firebase/firestore";
 
 export type MembershipPlan = "basic" | "premium" | "elite" | null;
 
@@ -25,12 +27,14 @@ interface AuthContextType {
   loading: boolean;
   membership: MembershipData;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
+  sidebarPermissions: string[];
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, displayName: string) => Promise<void>;
   logout: () => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  loginWithGoogle: () => Promise<UserCredential>;
   setMembershipPlan: (plan: MembershipPlan) => Promise<void>;
-  cancelMembership: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -47,6 +51,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [sidebarPermissions, setSidebarPermissions] = useState<string[]>([]);
   const [membership, setMembership] = useState<MembershipData>({
     plan: null,
     purchasedAt: null,
@@ -68,13 +74,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (currentUser) {
-        // Check if admin
-        setIsAdmin(currentUser.email === (import.meta.env.VITE_ADMIN_EMAIL || "manviclub@gmail.com"));
+        // Check if manviclub@gmail.com is Super Admin
+        const superAdmins = ["manviclub@gmail.com", "manvifishclub@gmail.com"];
+        const isSA = superAdmins.includes(currentUser.email || "");
+        setIsSuperAdmin(isSA);
+        setIsAdmin(isSA); // Super Admin is also an Admin
 
         // Realtime listener for user data
         unsubscribeSnapshot = onSnapshot(doc(db, "users", currentUser.uid), async (docSnapshot) => {
           if (docSnapshot.exists()) {
             const data = docSnapshot.data();
+
+            // Set sidebar permissions
+            setSidebarPermissions(data.sidebarPermissions || []);
+
+            // Allow role-based admin check as well
+            if (data.role === 'admin' || isSA) {
+              setIsAdmin(true);
+            } else {
+              setIsAdmin(false);
+            }
+
             if (data.membership) {
               const expiresAt = data.membership.expiresAt?.toDate ? data.membership.expiresAt.toDate() : new Date(data.membership.expiresAt);
 
@@ -116,6 +136,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       } else {
         setIsAdmin(false);
+        setIsSuperAdmin(false);
+        setSidebarPermissions([]);
         setMembership({ plan: null, purchasedAt: null, expiresAt: null });
         setLoading(false);
       }
@@ -134,19 +156,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async (email: string, password: string, displayName: string) => {
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(user, { displayName });
-    // Create user document
+
+    // Check if a user record was already created by an admin
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("email", "==", email));
+    const querySnapshot = await getDocs(q);
+
+    let existingData = {};
+    let existingDocId = null;
+
+    if (!querySnapshot.empty) {
+      existingData = querySnapshot.docs[0].data();
+      existingDocId = querySnapshot.docs[0].id;
+    }
+
+    // Create/Update user document with UID
     await setDoc(doc(db, "users", user.uid), {
       email,
       displayName,
       role: email === (import.meta.env.VITE_ADMIN_EMAIL || "manviclub@gmail.com") ? "admin" : "user",
       createdAt: new Date(),
-      provider: "email"
+      provider: "email",
+      ...existingData, // Merge existing data (role, permissions, etc.)
+      uid: user.uid // Ensure UID is stored
     });
+
+    // If we merged data from an existing doc, delete the temporary doc
+    if (existingDocId && existingDocId !== user.uid) {
+      await deleteDoc(doc(db, "users", existingDocId));
+    }
   };
 
   const logout = async () => {
     await signOut(auth);
     setMembership({ plan: null, purchasedAt: null, expiresAt: null });
+  };
+
+  const resetPassword = async (email: string) => {
+    await sendPasswordResetEmail(auth, email);
   };
 
   const loginWithGoogle = async () => {
@@ -169,6 +216,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           provider: "google"
         });
       }
+
+      return result; // Return the result so we can access user data
     } catch (error: any) {
       console.error("loginWithGoogle error:", error);
       throw error; // Re-throw to be caught by the calling function
@@ -194,32 +243,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const cancelMembership = async () => {
-    if (user && membership.plan) {
-      await updateDoc(doc(db, "users", user.uid), {
-        membership: null,
-        lastExpiredMembership: {
-          plan: membership.plan,
-          purchasedAt: membership.purchasedAt,
-          expiresAt: membership.expiresAt,
-          cancelledAt: new Date()
-        }
-      });
-      setMembership({ plan: null, purchasedAt: null, expiresAt: null });
-    }
-  };
-
   const value = {
     user,
     loading,
     membership,
     isAdmin,
+    isSuperAdmin,
+    sidebarPermissions,
     login,
     signup,
     logout,
+    resetPassword,
     loginWithGoogle,
     setMembershipPlan,
-    cancelMembership
   };
 
   return (

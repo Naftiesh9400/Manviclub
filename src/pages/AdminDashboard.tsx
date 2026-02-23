@@ -55,15 +55,39 @@ import {
   Database
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 
 type Tab = "overview" | "tournaments" | "registrations" | "users" | "gallery" | "sales" | "memberships" | "jobs" | "applications" | "newsletter" | "leaderboard" | "notifications" | "ems" | "sections" | "settings";
 
+const ALL_TABS: { id: Tab; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "tournaments", label: "Tournaments" },
+  { id: "gallery", label: "Gallery" },
+  { id: "leaderboard", label: "Leaderboard" },
+  { id: "sections", label: "Sections & Items" },
+  { id: "users", label: "Users" },
+  { id: "registrations", label: "Registrations" },
+  { id: "ems", label: "Team Management" },
+  { id: "sales", label: "Sales & Payments" },
+  { id: "memberships", label: "Memberships" },
+  { id: "jobs", label: "Jobs" },
+  { id: "applications", label: "Applications" },
+  { id: "newsletter", label: "Newsletter" },
+  { id: "notifications", label: "Notifications" },
+  { id: "settings", label: "Settings" },
+];
+
 const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) => {
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { user, isAdmin, isSuperAdmin, sidebarPermissions, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const db = getFirestore();
+
+  const isTabVisible = (tabId: Tab) => {
+    if (isSuperAdmin) return true;
+    return sidebarPermissions?.includes(tabId);
+  };
 
   const [activeTab, setActiveTab] = useState<Tab>(defaultTab as Tab);
   const [isLoading, setIsLoading] = useState(false);
@@ -738,27 +762,37 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
     setIsLoading(true);
     try {
       const updateData: any = {
+        email: formData.email,
         displayName: formData.displayName,
         role: formData.role,
+        sidebarPermissions: formData.sidebarPermissions || [],
+        updatedAt: new Date()
       };
 
-      if (formData.membershipPlan) {
-        if (formData.membershipPlan === 'none') {
-          updateData.membership = null;
-        } else {
-          const now = new Date();
-          const expiresAt = new Date(now);
-          expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-          updateData.membership = {
-            plan: formData.membershipPlan,
-            purchasedAt: now,
-            expiresAt: expiresAt
-          };
+      if (!formData.id) {
+        updateData.createdAt = new Date();
+        updateData.temporaryPassword = formData.password || ''; // Store temporary password
+        await addDoc(collection(db, "users"), updateData);
+        toast({ title: "Success", description: "User record created with temporary password." });
+      } else {
+        if (formData.membershipPlan) {
+          if (formData.membershipPlan === 'none') {
+            updateData.membership = null;
+          } else {
+            const now = new Date();
+            const expiresAt = new Date(now);
+            expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+            updateData.membership = {
+              plan: formData.membershipPlan,
+              purchasedAt: now,
+              expiresAt: expiresAt
+            };
+          }
         }
-      }
 
-      await updateDoc(doc(db, "users", formData.id), updateData);
-      toast({ title: "Success", description: "User updated successfully" });
+        await updateDoc(doc(db, "users", formData.id), updateData);
+        toast({ title: "Success", description: "User updated successfully" });
+      }
       setShowForm(false);
       setFormData({});
       fetchData("users");
@@ -1061,6 +1095,7 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
 
       toast({ title: "Status Updated", description: `Application marked as ${newStatus}` });
       setApplications(prev => prev.map(app => app.id === id ? { ...app, status: newStatus } : app));
+
     } catch (error) {
       console.error("Error updating status:", error);
       toast({ title: "Error", description: "Failed to update status", variant: "destructive" });
@@ -1695,20 +1730,52 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
             <Button variant={userFilter === 'tournament' ? 'secondary' : 'outline'} size="sm" onClick={() => setUserFilter('tournament')}>
               Tournament Registered
             </Button>
+            <Button
+              variant="default"
+              size="sm"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              onClick={() => {
+                setFormData({ role: 'user', sidebarPermissions: [] });
+                setShowForm(true);
+              }}
+            >
+              <Plus className="w-4 h-4 mr-2" /> Add New User
+            </Button>
           </div>
         </div>
         <div className="bg-card rounded-xl border overflow-hidden">
           {showForm && (
             <div className="p-4 border-b bg-muted/20">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="font-semibold">Edit User</h3>
+                <h3 className="font-semibold">{formData.id ? "Edit User" : "Add New User"}</h3>
                 <Button variant="ghost" size="sm" onClick={() => setShowForm(false)}><X className="w-4 h-4" /></Button>
               </div>
               <form onSubmit={handleUpdateUser} className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label>Display Name</Label>
-                  <Input value={formData.displayName || ''} onChange={e => setFormData({ ...formData, displayName: e.target.value })} />
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={formData.email || ''}
+                    onChange={e => setFormData({ ...formData, email: e.target.value })}
+                    disabled={!!formData.id}
+                    placeholder="user@example.com"
+                  />
                 </div>
+                <div className="space-y-2">
+                  <Label>Display Name</Label>
+                  <Input value={formData.displayName || ''} onChange={e => setFormData({ ...formData, displayName: e.target.value })} placeholder="Full Name" />
+                </div>
+                {!formData.id && (
+                  <div className="space-y-2">
+                    <Label>Password</Label>
+                    <Input
+                      type="password"
+                      value={formData.password || ''}
+                      onChange={e => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="Set temporary password"
+                    />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Role</Label>
                   <select
@@ -1735,6 +1802,38 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
                     ))}
                   </select>
                 </div>
+
+                {isSuperAdmin && (
+                  <div className="md:col-span-3 space-y-3 p-4 bg-primary/5 rounded-lg border border-primary/10">
+                    <Label className="text-sm font-semibold flex items-center gap-2">
+                      Sidebar Permissions <Settings className="w-3 h-3" />
+                    </Label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {ALL_TABS.map((tab) => (
+                        <div key={tab.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`permission-${tab.id}`}
+                            checked={formData.sidebarPermissions?.includes(tab.id)}
+                            onCheckedChange={(checked) => {
+                              const currentPermissions = formData.sidebarPermissions || [];
+                              const newPermissions = checked
+                                ? [...currentPermissions, tab.id]
+                                : currentPermissions.filter((p: string) => p !== tab.id);
+                              setFormData({ ...formData, sidebarPermissions: newPermissions });
+                            }}
+                          />
+                          <label
+                            htmlFor={`permission-${tab.id}`}
+                            className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          >
+                            {tab.label}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <Button type="submit" className="md:col-span-3" disabled={isLoading}>Update User</Button>
               </form>
             </div>
@@ -1769,7 +1868,8 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
                           id: u.id,
                           displayName: u.displayName,
                           role: u.role,
-                          membershipPlan: u.membership?.plan || 'none'
+                          membershipPlan: u.membership?.plan || 'none',
+                          sidebarPermissions: u.sidebarPermissions || []
                         });
                         setShowForm(true);
                       }}>
@@ -3068,135 +3168,165 @@ const AdminDashboard = ({ defaultTab = "overview" }: { defaultTab?: string }) =>
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
           <div className="space-y-1">
             <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Dashboard</p>
-            <Button
-              variant={activeTab === "overview" ? "secondary" : "ghost"}
-              className="w-full justify-start hover:bg-primary/5 transition-all"
-              onClick={() => setActiveTab("overview")}
-            >
-              <LayoutDashboard className="w-4 h-4 mr-2" /> Overview
-            </Button>
+            {isTabVisible("overview") && (
+              <Button
+                variant={activeTab === "overview" ? "secondary" : "ghost"}
+                className="w-full justify-start hover:bg-primary/5 transition-all"
+                onClick={() => setActiveTab("overview")}
+              >
+                <LayoutDashboard className="w-4 h-4 mr-2" /> Overview
+              </Button>
+            )}
           </div>
 
           <div className="space-y-1 pt-4">
             <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Content</p>
-            <Button
-              variant={activeTab === "tournaments" ? "secondary" : "ghost"}
-              className="w-full justify-start hover:bg-primary/5 transition-all"
-              onClick={() => setActiveTab("tournaments")}
-            >
-              <Trophy className="w-4 h-4 mr-2" /> Tournaments
-            </Button>
-            <Button
-              variant={activeTab === "gallery" ? "secondary" : "ghost"}
-              className="w-full justify-start hover:bg-primary/5 transition-all"
-              onClick={() => setActiveTab("gallery")}
-            >
-              <ImageIcon className="w-4 h-4 mr-2" /> Gallery
-            </Button>
-            <Button
-              variant={activeTab === "leaderboard" ? "secondary" : "ghost"}
-              className="w-full justify-start hover:bg-primary/5 transition-all"
-              onClick={() => setActiveTab("leaderboard")}
-            >
-              <Trophy className="w-4 h-4 mr-2" /> Leaderboard
-            </Button>
-            <Button
-              variant={activeTab === "sections" ? "secondary" : "ghost"}
-              className="w-full justify-start hover:bg-primary/5 transition-all"
-              onClick={() => setActiveTab("sections")}
-            >
-              <LayoutDashboard className="w-4 h-4 mr-2" /> Sections & Items
-            </Button>
+            {isTabVisible("tournaments") && (
+              <Button
+                variant={activeTab === "tournaments" ? "secondary" : "ghost"}
+                className="w-full justify-start hover:bg-primary/5 transition-all"
+                onClick={() => setActiveTab("tournaments")}
+              >
+                <Trophy className="w-4 h-4 mr-2" /> Tournaments
+              </Button>
+            )}
+            {isTabVisible("gallery") && (
+              <Button
+                variant={activeTab === "gallery" ? "secondary" : "ghost"}
+                className="w-full justify-start hover:bg-primary/5 transition-all"
+                onClick={() => setActiveTab("gallery")}
+              >
+                <ImageIcon className="w-4 h-4 mr-2" /> Gallery
+              </Button>
+            )}
+            {isTabVisible("leaderboard") && (
+              <Button
+                variant={activeTab === "leaderboard" ? "secondary" : "ghost"}
+                className="w-full justify-start hover:bg-primary/5 transition-all"
+                onClick={() => setActiveTab("leaderboard")}
+              >
+                <Trophy className="w-4 h-4 mr-2" /> Leaderboard
+              </Button>
+            )}
+            {isTabVisible("sections") && (
+              <Button
+                variant={activeTab === "sections" ? "secondary" : "ghost"}
+                className="w-full justify-start hover:bg-primary/5 transition-all"
+                onClick={() => setActiveTab("sections")}
+              >
+                <LayoutDashboard className="w-4 h-4 mr-2" /> Sections & Items
+              </Button>
+            )}
           </div>
 
           <div className="space-y-1 pt-4">
             <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Users & Teams</p>
-            <Button
-              variant={activeTab === "users" ? "secondary" : "ghost"}
-              className="w-full justify-start hover:bg-primary/5 transition-all"
-              onClick={() => setActiveTab("users")}
-            >
-              <Users className="w-4 h-4 mr-2" /> Users
-            </Button>
-            <Button
-              variant={activeTab === "registrations" ? "secondary" : "ghost"}
-              className="w-full justify-start hover:bg-primary/5 transition-all"
-              onClick={() => setActiveTab("registrations")}
-            >
-              <Users className="w-4 h-4 mr-2" /> Registrations
-            </Button>
-            <Button
-              variant={activeTab === "ems" ? "secondary" : "ghost"}
-              className="w-full justify-start hover:bg-primary/5 transition-all"
-              onClick={() => setActiveTab("ems")}
-            >
-              <Users className="w-4 h-4 mr-2" /> Team Management
-            </Button>
+            {isTabVisible("users") && (
+              <Button
+                variant={activeTab === "users" ? "secondary" : "ghost"}
+                className="w-full justify-start hover:bg-primary/5 transition-all"
+                onClick={() => setActiveTab("users")}
+              >
+                <Users className="w-4 h-4 mr-2" /> Users
+              </Button>
+            )}
+            {isTabVisible("registrations") && (
+              <Button
+                variant={activeTab === "registrations" ? "secondary" : "ghost"}
+                className="w-full justify-start hover:bg-primary/5 transition-all"
+                onClick={() => setActiveTab("registrations")}
+              >
+                <Users className="w-4 h-4 mr-2" /> Registrations
+              </Button>
+            )}
+            {isTabVisible("ems") && (
+              <Button
+                variant={activeTab === "ems" ? "secondary" : "ghost"}
+                className="w-full justify-start hover:bg-primary/5 transition-all"
+                onClick={() => setActiveTab("ems")}
+              >
+                <Users className="w-4 h-4 mr-2" /> Team Management
+              </Button>
+            )}
           </div>
 
           <div className="space-y-1 pt-4">
             <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Business</p>
-            <Button
-              variant={activeTab === "sales" ? "secondary" : "ghost"}
-              className="w-full justify-start hover:bg-primary/5 transition-all"
-              onClick={() => setActiveTab("sales")}
-            >
-              <CreditCard className="w-4 h-4 mr-2" /> Sales & Payments
-            </Button>
-            <Button
-              variant={activeTab === "memberships" ? "secondary" : "ghost"}
-              className="w-full justify-start hover:bg-primary/5 transition-all"
-              onClick={() => setActiveTab("memberships")}
-            >
-              <Crown className="w-4 h-4 mr-2" /> Memberships
-            </Button>
+            {isTabVisible("sales") && (
+              <Button
+                variant={activeTab === "sales" ? "secondary" : "ghost"}
+                className="w-full justify-start hover:bg-primary/5 transition-all"
+                onClick={() => setActiveTab("sales")}
+              >
+                <CreditCard className="w-4 h-4 mr-2" /> Sales & Payments
+              </Button>
+            )}
+            {isTabVisible("memberships") && (
+              <Button
+                variant={activeTab === "memberships" ? "secondary" : "ghost"}
+                className="w-full justify-start hover:bg-primary/5 transition-all"
+                onClick={() => setActiveTab("memberships")}
+              >
+                <Crown className="w-4 h-4 mr-2" /> Memberships
+              </Button>
+            )}
           </div>
 
           <div className="space-y-1 pt-4">
             <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Careers</p>
-            <Button
-              variant={activeTab === "jobs" ? "secondary" : "ghost"}
-              className="w-full justify-start hover:bg-primary/5 transition-all"
-              onClick={() => setActiveTab("jobs")}
-            >
-              <Briefcase className="w-4 h-4 mr-2" /> Jobs
-            </Button>
-            <Button
-              variant={activeTab === "applications" ? "secondary" : "ghost"}
-              className="w-full justify-start hover:bg-primary/5 transition-all"
-              onClick={() => setActiveTab("applications")}
-            >
-              <FileText className="w-4 h-4 mr-2" /> Applications
-            </Button>
+            {isTabVisible("jobs") && (
+              <Button
+                variant={activeTab === "jobs" ? "secondary" : "ghost"}
+                className="w-full justify-start hover:bg-primary/5 transition-all"
+                onClick={() => setActiveTab("jobs")}
+              >
+                <Briefcase className="w-4 h-4 mr-2" /> Jobs
+              </Button>
+            )}
+            {isTabVisible("applications") && (
+              <Button
+                variant={activeTab === "applications" ? "secondary" : "ghost"}
+                className="w-full justify-start hover:bg-primary/5 transition-all"
+                onClick={() => setActiveTab("applications")}
+              >
+                <FileText className="w-4 h-4 mr-2" /> Applications
+              </Button>
+            )}
           </div>
 
           <div className="space-y-1 pt-4">
             <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Communication</p>
-            <Button
-              variant={activeTab === "newsletter" ? "secondary" : "ghost"}
-              className="w-full justify-start hover:bg-primary/5 transition-all"
-              onClick={() => setActiveTab("newsletter")}
-            >
-              <Mail className="w-4 h-4 mr-2" /> Newsletter
-            </Button>
-            <Button
-              variant={activeTab === "notifications" ? "secondary" : "ghost"}
-              className="w-full justify-start hover:bg-primary/5 transition-all"
-              onClick={() => setActiveTab("notifications")}
-            >
-              <Users className="w-4 h-4 mr-2" /> Notifications
-            </Button>
+            {isTabVisible("newsletter") && (
+              <Button
+                variant={activeTab === "newsletter" ? "secondary" : "ghost"}
+                className="w-full justify-start hover:bg-primary/5 transition-all"
+                onClick={() => setActiveTab("newsletter")}
+              >
+                <Mail className="w-4 h-4 mr-2" /> Newsletter
+              </Button>
+            )}
+            {isTabVisible("notifications") && (
+              <Button
+                variant={activeTab === "notifications" ? "secondary" : "ghost"}
+                className="w-full justify-start hover:bg-primary/5 transition-all"
+                onClick={() => setActiveTab("notifications")}
+              >
+                <Users className="w-4 h-4 mr-2" /> Notifications
+              </Button>
+            )}
           </div>
 
           <div className="space-y-1 pt-4 pb-4">
             <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">System</p>
-            <Button
-              variant={activeTab === "settings" ? "secondary" : "ghost"}
-              className="w-full justify-start hover:bg-primary/5 transition-all"
-              onClick={() => setActiveTab("settings")}
-            >
-              <Settings className="w-4 h-4 mr-2" /> Settings
-            </Button>
+            {isTabVisible("settings") && (
+              <Button
+                variant={activeTab === "settings" ? "secondary" : "ghost"}
+                className="w-full justify-start hover:bg-primary/5 transition-all"
+                onClick={() => setActiveTab("settings")}
+              >
+                <Settings className="w-4 h-4 mr-2" /> Settings
+              </Button>
+            )}
           </div>
         </nav>
 

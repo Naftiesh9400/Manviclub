@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSG91 Email Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: 'Courier New', monospace;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .response.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            display: block;
+        }
+
+        .response.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            display: block;
+        }
+
+        .response pre {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .info-box p {
+            margin: 5px 0;
+            font-size: 13px;
+            color: #0d47a1;
+        }
+
+        .info-box strong {
+            color: #01579b;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🚀 MSG91 Email Test</h1>
+        <p class="subtitle">Test your MSG91 email integration</p>
+
+        <div class="info-box">
+            <p><strong>⚠️ Before testing:</strong></p>
+            <p>1. Replace placeholder values in the JSON payload below</p>
+            <p>2. Enter your MSG91 Auth Key</p>
+            <p>3. Use your verified sender email and domain</p>
+        </div>
+
+        <form id="emailForm">
+            <div class="form-group">
+                <label for="authKey">MSG91 Auth Key *</label>
+                <input type="text" id="authKey" placeholder="Enter your MSG91 auth key" required />
+            </div>
+
+            <div class="form-group">
+                <label for="payload">Email Payload (JSON) *</label>
+                <textarea id="payload" required></textarea>
+            </div>
+
+            <button type="submit" id="sendBtn">Send Test Email</button>
+        </form>
+
+        <div id="response" class="response"></div>
+    </div>
+
+    <script>
+        // Default payload template
+        const defaultPayload = {
+            "recipients": [
+                {
+                    "to": [
+                        {
+                            "name": "Naftish Mandal",
+                            "email": "naftieshmandal02@gmail.com"
+                        }
+                    ],
+                    "variables": {
+                        "name": "Naftish Mandal"
+                    }
+                }
+            ],
+            "from": {
+                "name": "Manvi Fishing Club",
+                "email": "noreply@manvifishingclub.com"  // REPLACE WITH YOUR VERIFIED SENDER
+            },
+            "domain": "manvifishingclub.com",  // REPLACE WITH YOUR REGISTERED DOMAIN
+            "reply_to": [
+                {
+                    "email": "support@manvifishingclub.com"
+                }
+            ],
+            "template_id": "YOUR_TEMPLATE_ID",  // REPLACE WITH YOUR TEMPLATE ID
+            "validate_before_send": true
+        };
+
+        // Populate textarea with default payload
+        document.getElementById('payload').value = JSON.stringify(defaultPayload, null, 2);
+
+        // Handle form submission
+        document.getElementById('emailForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const authKey = document.getElementById('authKey').value.trim();
+            const payloadText = document.getElementById('payload').value.trim();
+            const responseDiv = document.getElementById('response');
+            const sendBtn = document.getElementById('sendBtn');
+
+            // Validate inputs
+            if (!authKey) {
+                showResponse('error', 'Please enter your MSG91 Auth Key');
+                return;
+            }
+
+            let payload;
+            try {
+                payload = JSON.parse(payloadText);
+            } catch (error) {
+                showResponse('error', 'Invalid JSON payload', error.message);
+                return;
+            }
+
+            // Disable button and show loading
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Sending...';
+            responseDiv.style.display = 'none';
+
+            // Send email using XMLHttpRequest
+            sendEmail(payload, authKey);
+        });
+
+        function sendEmail(payload, authKey) {
+            const data = JSON.stringify(payload);
+            const xhr = new XMLHttpRequest();
+            xhr.withCredentials = true;
+
+            xhr.addEventListener('readystatechange', function () {
+                if (this.readyState === this.DONE) {
+                    const sendBtn = document.getElementById('sendBtn');
+                    sendBtn.disabled = false;
+                    sendBtn.textContent = 'Send Test Email';
+
+                    try {
+                        const response = JSON.parse(this.responseText);
+
+                        if (this.status >= 200 && this.status < 300) {
+                            showResponse('success', '✅ Email sent successfully!', response);
+                        } else {
+                            showResponse('error', `❌ Failed to send email (Status: ${this.status})`, response);
+                        }
+                    } catch (error) {
+                        showResponse('error', '❌ Failed to parse response', this.responseText);
+                    }
+                }
+            });
+
+            xhr.addEventListener('error', function () {
+                const sendBtn = document.getElementById('sendBtn');
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Send Test Email';
+                showResponse('error', '❌ Network error occurred', 'Please check your internet connection');
+            });
+
+            xhr.open('POST', 'https://control.msg91.com/api/v5/email/send');
+            xhr.setRequestHeader('accept', 'application/json');
+            xhr.setRequestHeader('authkey', authKey);
+            xhr.setRequestHeader('content-type', 'application/json');
+
+            xhr.send(data);
+        }
+
+        function showResponse(type, message, details = null) {
+            const responseDiv = document.getElementById('response');
+            responseDiv.className = `response ${type}`;
+
+            let html = `<strong>${message}</strong>`;
+            if (details) {
+                html += `<pre>${typeof details === 'object' ? JSON.stringify(details, null, 2) : details}</pre>`;
+            }
+
+            responseDiv.innerHTML = html;
+            responseDiv.style.display = 'block';
+        }
+    </script>
+</body>
+
+</html>
